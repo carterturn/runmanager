@@ -814,53 +814,19 @@ QToolButton:hover {
            <number>3</number>
           </property>
           <item>
-           <widget class="QPushButton" name="pushButton_open_globals_file">
+           <widget class="QPushButton" name="pushButton_reload_globals_file">
             <property name="focusPolicy">
              <enum>Qt::NoFocus</enum>
             </property>
             <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Load an HDF file containing globals into runviewer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reload the python file containing globals into runviewer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
-             <string>Open globals file</string>
+             <string>Reload globals file</string>
             </property>
             <property name="icon">
              <iconset>
               <normaloff>:/qtutils/fugue/folder-open-table.png</normaloff>:/qtutils/fugue/folder-open-table.png</iconset>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_new_globals_file">
-            <property name="focusPolicy">
-             <enum>Qt::NoFocus</enum>
-            </property>
-            <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Create a new HDF file to store globals in.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-            </property>
-            <property name="text">
-             <string>New globals file</string>
-            </property>
-            <property name="icon">
-             <iconset>
-              <normaloff>:/qtutils/fugue/table--plus.png</normaloff>:/qtutils/fugue/table--plus.png</iconset>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_diff_globals_file">
-            <property name="focusPolicy">
-             <enum>Qt::NoFocus</enum>
-            </property>
-            <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Compare the globals stored in an HDF5 file with those currently in use by runmanager.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-            </property>
-            <property name="text">
-             <string>Diff globals file</string>
-            </property>
-            <property name="icon">
-             <iconset>
-              <normaloff>:/qtutils/fugue/tables.png</normaloff>:/qtutils/fugue/tables.png</iconset>
             </property>
            </widget>
           </item>
@@ -1037,9 +1003,7 @@ QToolButton:hover {
   <tabstop>toolButton_axis_down</tabstop>
   <tabstop>toolButton_axis_to_bottom</tabstop>
   <tabstop>treeView_axes</tabstop>
-  <tabstop>pushButton_open_globals_file</tabstop>
-  <tabstop>pushButton_new_globals_file</tabstop>
-  <tabstop>pushButton_diff_globals_file</tabstop>
+  <tabstop>pushButton_reload_globals_file</tabstop>
   <tabstop>treeView_groups</tabstop>
   <tabstop>scrollArea_2</tabstop>
  </tabstops>

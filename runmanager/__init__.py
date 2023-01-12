@@ -15,6 +15,7 @@ import itertools
 import os
 import sys
 import random
+import re
 import time
 import subprocess
 import types
@@ -36,11 +37,19 @@ process_tree = ProcessTree.instance()
 
 from .__version__ import __version__
 
+# String used to denote a group in the global variables file
+RUNMANAGER_GROUP_MARKER = '###'
+# Regular expression to extract a global variable from the global variables file
+global_re = re.compile(r'([^= ]+) = (.+)')
+
+# Dictionary of global variables.
+# Top level keys are group names, with values being dictionaries
+# keyed by the global name with (expression, units, expansion)
+ACTIVE_GLOBALS_DICT = {}
 
 def _ensure_str(s):
     """convert bytestrings and numpy strings to python strings"""
     return s.decode() if isinstance(s, bytes) else str(s)
-
 
 def is_valid_python_identifier(name):
     # No whitespace allowed. Do this check here because an actual newline in the source
@@ -60,8 +69,7 @@ def is_valid_python_identifier(name):
         return token_types[0] == tokenize.NAME
     return False
 
-
-def is_valid_hdf5_group_name(name):
+def is_valid_group_name(name):
     """Ensure that a string is a valid name for an hdf5 group.
 
     The names of hdf5 groups may only contain ASCII characters. Furthermore, the
@@ -86,13 +94,11 @@ def is_valid_hdf5_group_name(name):
             return False
     return True
 
-
 class ExpansionError(Exception):
 
     """An exception class so that error handling code can tell when a
     parsing exception was caused by a mismatch with the expansion mode"""
     pass
-
 
 class TraceDictionary(dict):
 
@@ -114,220 +120,99 @@ class TraceDictionary(dict):
         self.trace_data = None
         return trace_data
 
+def get_grouplist():
+    return list(ACTIVE_GLOBALS_DICT)
 
-def new_globals_file(filename):
-    with h5py.File(filename, 'w') as f:
-        f.create_group('globals')
-
-
-def add_expansion_groups(filename):
-    """backward compatability, for globals files which don't have
-    expansion groups. Create them if they don't exist. Guess expansion
-    settings based on datatypes, if possible."""
-    # DEPRECATED
-    # Don't open in write mode unless we have to:
-    with h5py.File(filename, 'r') as f:
-        requires_expansion_group = []
-        for groupname in f['globals']:
-            group = f['globals'][groupname]
-            if not 'expansion' in group:
-                requires_expansion_group.append(groupname)
-    if requires_expansion_group:
-        group_globalslists = [get_globalslist(filename, groupname) for groupname in requires_expansion_group]
-        with h5py.File(filename, 'a') as f:
-            for groupname, globalslist in zip(requires_expansion_group, group_globalslists):
-                group = f['globals'][groupname]
-                subgroup = group.create_group('expansion')
-                # Initialise all expansion settings to blank strings:
-                for name in globalslist:
-                    subgroup.attrs[name] = ''
-        groups = {group_name: filename for group_name in get_grouplist(filename)}
-        sequence_globals = get_globals(groups)
-        evaled_globals, global_hierarchy, expansions = evaluate_globals(sequence_globals, raise_exceptions=False)
-        for group_name in evaled_globals:
-            for global_name in evaled_globals[group_name]:
-                value = evaled_globals[group_name][global_name]
-                expansion = guess_expansion_type(value)
-                set_expansion(filename, group_name, global_name, expansion)
-
-
-def get_grouplist(filename):
-    # For backward compatability, add 'expansion' settings to this
-    # globals file, if it doesn't contain any.  Guess expansion settings
-    # if possible.
-    # DEPRECATED
-    add_expansion_groups(filename)
-    with h5py.File(filename, 'r') as f:
-        grouplist = f['globals']
-        # File closes after this function call, so have to
-        # convert the grouplist generator to a list of strings
-        # before its file gets dereferenced:
-        return list(grouplist)
-
-
-def new_group(filename, groupname):
-    if not is_valid_hdf5_group_name(groupname):
+def new_group(groupname):
+    if not is_valid_group_name(groupname):
         raise ValueError(
             'Invalid group name. Group names must contain only ASCII '
             'characters and cannot include "/" or ".".'
         )
-    with h5py.File(filename, 'a') as f:
-        if groupname in f['globals']:
-            raise Exception('Can\'t create group: target name already exists.')
-        group = f['globals'].create_group(groupname)
-        group.create_group('units')
-        group.create_group('expansion')
+    ACTIVE_GLOBALS_DICT[groupname] = {}
 
-
-def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_source_group=False):
-    """ This function copies the group source_groupname from source_globals_file
-        to dest_globals_file and renames the new group so that there is no name
-        collision. If delete_source_group is False the copyied files have
-        a suffix '_copy'."""
-    with h5py.File(source_globals_file, 'a') as source_f:
-        # check if group exists
-        if source_groupname not in source_f['globals']:
-            raise Exception('Can\'t copy there is no group "{}"!'.format(source_groupname))
-
-        # Are we coping from one file to another?
-        if dest_globals_file is not None and source_globals_file != dest_globals_file:
-            dest_f = h5py.File(dest_globals_file, 'a')  # yes -> open dest_globals_file
-        else:
-            dest_f = source_f  # no -> dest files is source file
-
-        # rename Group until there is no name collisions
-        i = 0 if not delete_source_group else 1
-        dest_groupname = source_groupname
-        while dest_groupname in dest_f['globals']:
-            dest_groupname = "{}({})".format(dest_groupname, i) if i > 0 else "{}_copy".format(dest_groupname)
-            i += 1
-
-        # copy group
-        dest_f.copy(source_f['globals'][source_groupname], '/globals/%s' % dest_groupname)
-
-        # close opend file
-        if dest_f != source_f:
-            dest_f.close()
-
-    return dest_groupname
-
-
-def rename_group(filename, oldgroupname, newgroupname):
+def rename_group(oldgroupname, newgroupname):
     if oldgroupname == newgroupname:
         # No rename!
         return
-    if not is_valid_hdf5_group_name(newgroupname):
+    if not is_valid_group_name(newgroupname):
         raise ValueError(
             'Invalid group name. Group names must contain only ASCII '
             'characters and cannot include "/" or ".".'
         )
-    with h5py.File(filename, 'a') as f:
-        if newgroupname in f['globals']:
-            raise Exception('Can\'t rename group: target name already exists.')
-        f.copy(f['globals'][oldgroupname], '/globals/%s' % newgroupname)
-        del f['globals'][oldgroupname]
+    if newgroupname in ACTIVE_GLOBALS_DICT:
+        raise Exception('Can\'t rename group: target name already exists.')
+    if oldgroupname in ACTIVE_GLOBALS_DICT:
+        ACTIVE_GLOBALS_DICT[newgroupname] = ACTIVE_GLOBALS_DICT.pop(oldgroupname)
 
+def delete_group(groupname):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        ACTIVE_GLOBALS_DICT.pop(groupname)
 
-def delete_group(filename, groupname):
-    with h5py.File(filename, 'a') as f:
-        del f['globals'][groupname]
+def get_globalslist(groupname):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        return list(ACTIVE_GLOBALS_DICT[groupname])
+    return []
 
-
-def get_globalslist(filename, groupname):
-    with h5py.File(filename, 'r') as f:
-        group = f['globals'][groupname]
-        # File closes after this function call, so have to convert
-        # the attrs to a dict before its file gets dereferenced:
-        return dict(group.attrs)
-
-
-def new_global(filename, groupname, globalname):
+def new_global(groupname, globalname):
     if not is_valid_python_identifier(globalname):
         raise ValueError('%s is not a valid Python variable name'%globalname)
-    with h5py.File(filename, 'a') as f:
-        group = f['globals'][groupname]
-        if globalname in group.attrs:
-            raise Exception('Can\'t create global: target name already exists.')
-        group.attrs[globalname] = ''
-        f['globals'][groupname]['units'].attrs[globalname] = ''
-        f['globals'][groupname]['expansion'].attrs[globalname] = ''
+    if groupname not in ACTIVE_GLOBALS_DICT:
+        raise ValueError('%s is not a group'%groupname)
+    if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+        raise Exception('Can\'t create global: target name already exists.')
+    ACTIVE_GLOBALS_DICT[groupname][globalname] = ('', '', '')
 
-
-def rename_global(filename, groupname, oldglobalname, newglobalname):
+def rename_global(groupname, oldglobalname, newglobalname):
     if oldglobalname == newglobalname:
         # No rename!
         return
     if not is_valid_python_identifier(newglobalname):
         raise ValueError('%s is not a valid Python variable name'%newglobalname)
-    value = get_value(filename, groupname, oldglobalname)
-    units = get_units(filename, groupname, oldglobalname)
-    expansion = get_expansion(filename, groupname, oldglobalname)
-    with h5py.File(filename, 'a') as f:
-        group = f['globals'][groupname]
-        if newglobalname in group.attrs:
-            raise Exception('Can\'t rename global: target name already exists.')
-        group.attrs[newglobalname] = value
-        group['units'].attrs[newglobalname] = units
-        group['expansion'].attrs[newglobalname] = expansion
-        del group.attrs[oldglobalname]
-        del group['units'].attrs[oldglobalname]
-        del group['expansion'].attrs[oldglobalname]
+    if groupname not in ACTIVE_GLOBALS_DICT:
+        raise ValueError('%s is not a group'%groupname)
+    if globalname not in ACTIVE_GLOBALS_DICT[groupname]:
+        raise ValueError('%s is not a global'%oldglobalname)
+    ACTIVE_GLOBALS_DICT[groupname][newglobalname] = ACTIVE_GLOBALS_DICT[groupname].pop(oldglobalname)
 
+def get_value(groupname, globalname):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+            return ACTIVE_GLOBALS_DICT[groupname][globalname][0]
+    return None
 
-def get_value(filename, groupname, globalname):
-    with h5py.File(filename, 'r') as f:
-        value = f['globals'][groupname].attrs[globalname]
-        # Replace numpy strings with python unicode strings.
-        # DEPRECATED, for backward compat with old files
-        value = _ensure_str(value)
-        return value
+def set_value(groupname, globalname, value):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+            ACTIVE_GLOBALS_DICT[groupname][globalname][0] = value
 
+def get_units(groupname, globalname):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+            return ACTIVE_GLOBALS_DICT[groupname][globalname][1]
+    return None
 
-def set_value(filename, groupname, globalname, value):
-    with h5py.File(filename, 'a') as f:
-        f['globals'][groupname].attrs[globalname] = value
+def set_units(groupname, globalname, units):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+            ACTIVE_GLOBALS_DICT[groupname][globalname][1] = units
 
+def get_expansion(groupname, globalname):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+            return ACTIVE_GLOBALS_DICT[groupname][globalname][2]
+    return None
 
-def get_units(filename, groupname, globalname):
-    with h5py.File(filename, 'r') as f:
-        value = f['globals'][groupname]['units'].attrs[globalname]
-        # Replace numpy strings with python unicode strings.
-        # DEPRECATED, for backward compat with old files
-        value = _ensure_str(value)
-        return value
-
-
-def set_units(filename, groupname, globalname, units):
-    with h5py.File(filename, 'a') as f:
-        f['globals'][groupname]['units'].attrs[globalname] = units
-
-
-def get_expansion(filename, groupname, globalname):
-    with h5py.File(filename, 'r') as f:
-        value = f['globals'][groupname]['expansion'].attrs[globalname]
-        # Replace numpy strings with python unicode strings.
-        # DEPRECATED, for backward compat with old files
-        value = _ensure_str(value)
-        return value
-
-
-def set_expansion(filename, groupname, globalname, expansion):
-    with h5py.File(filename, 'a') as f:
-        f['globals'][groupname]['expansion'].attrs[globalname] = expansion
-
-
-def delete_global(filename, groupname, globalname):
-    with h5py.File(filename, 'a') as f:
-        group = f['globals'][groupname]
-        del group.attrs[globalname]
-
+def set_expansion(groupname, globalname, expansion):
+    if groupname in ACTIVE_GLOBALS_DICT:
+        if globalname in ACTIVE_GLOBALS_DICT[groupname]:
+            ACTIVE_GLOBALS_DICT[groupname][globalname][2] = expansion
 
 def guess_expansion_type(value):
     if isinstance(value, np.ndarray) or isinstance(value, list):
         return u'outer'
     else:
         return u''
-
 
 def iterator_to_tuple(iterator, max_length=1000000):
     # We want to prevent infinite length tuples, but we cannot know
@@ -343,51 +228,37 @@ def iterator_to_tuple(iterator, max_length=1000000):
                              'please modify runmanager.iterator_to_tuple and increase max_length.')
     return tuple(temp_list)
 
+def ingest_globals_file(globals_file):
+    ACTIVE_GLOBALS_DICT.clear()
 
-def get_all_groups(h5_files):
-    """returns a dictionary of group_name: h5_path pairs from a list of h5_files."""
-    if isinstance(h5_files, bytes) or isinstance(h5_files, str):
-        h5_files = [h5_files]
-    groups = {}
-    for path in h5_files:
-        for group_name in get_grouplist(path):
-            if group_name in groups:
-                raise ValueError('Error: group %s is defined in both %s and %s. ' % (group_name, groups[group_name], path) +
-                                 'Only uniquely named groups can be used together '
-                                 'to make a run file.')
-            groups[group_name] = path
-    return groups
+    if globals_file is None:
+        return
+    with open(globals_file, 'r') as f:
+        current_group = None
 
+        for line in f:
+            if line[:len(RUNMANAGER_GROUP_MARKER)] == RUNMANAGER_GROUP_MARKER:
+                current_group = line[len(RUNMANAGER_GROUP_MARKER)+1:]
+
+                if current_group not in ACTIVE_GLOBALS_DICT.keys():
+                    ACTIVE_GLOBALS_DICT[current_group] = {}
+            else:
+                line_match = global_re.match(line)
+                if line_match:
+                    line_list = [line_match.groups()[1], '', '']
+                    ACTIVE_GLOBALS_DICT[current_group][line_match.groups()[0]] = line_list
+    return
+
+def get_all_groups():
+    """returns a list of group names in the global variables dictionary"""
+    return list(ACTIVE_GLOBALS_DICT)
 
 def get_globals(groups):
-    """Takes a dictionary of group_name: h5_file pairs and pulls the
-    globals out of the groups in their files.  The globals are strings
-    storing python expressions at this point. All these globals are
+    """Takes a list of group_name's and pulls the globals out of the groups.
+    The globals are strings storing python expressions at this point. All these globals are
     packed into a new dictionary, keyed by group_name, where the values
     are dictionaries which look like {global_name: (expression, units, expansion), ...}"""
-    # get a list of filepaths:
-    filepaths = set(groups.values())
-    sequence_globals = {}
-    for filepath in filepaths:
-        groups_from_this_file = [g for g, f in groups.items() if f == filepath]
-        with h5py.File(filepath, 'r') as f:
-            for group_name in groups_from_this_file:
-                sequence_globals[group_name] = {}
-                globals_group = f['globals'][group_name]
-                values = dict(globals_group.attrs)
-                units = dict(globals_group['units'].attrs)
-                expansions = dict(globals_group['expansion'].attrs)
-                for global_name, value in values.items():
-                    unit = units[global_name]
-                    expansion = expansions[global_name]
-                    # Replace numpy strings with python unicode strings.
-                    # DEPRECATED, for backward compat with old files
-                    value = _ensure_str(value)
-                    unit = _ensure_str(unit)
-                    expansion = _ensure_str(expansion)
-                    sequence_globals[group_name][global_name] = value, unit, expansion
-    return sequence_globals
-
+    return dict((g, ACTIVE_GLOBALS_DICT[g]) for g in groups if g in ACTIVE_GLOBALS_DICT)
 
 def evaluate_globals(sequence_globals, raise_exceptions=True):
     """Takes a dictionary of globals as returned by get_globals. These
@@ -778,7 +649,10 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
                 # Store it as a null object reference:
                 value = h5py.Reference()
             try:
-                f['globals'].attrs[name] = value
+                if type(value) == dict:
+                    f['globals'].attrs[name] = h5py.opaque_dtype(value)
+                else:
+                    f['globals'].attrs[name] = value
             except Exception as e:
                 message = ('Global %s cannot be saved as an hdf5 attribute. ' % name +
                            'Globals can only have relatively simple datatypes, with no nested structures. ' +
@@ -787,10 +661,10 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
                 raise ValueError(message)
 
 
-def make_run_file_from_globals_files(labscript_file, globals_files, output_path, config=None):
+def make_run_file_from_globals_files(labscript_file, output_path, config=None):
     """Creates a run file output_path, using all the globals from globals_files. Uses
     labscript_file to determine the sequence_attrs only"""
-    groups = get_all_groups(globals_files)
+    groups = get_all_groups()
     sequence_globals = get_globals(groups)
     evaled_globals, global_hierarchy, expansions = evaluate_globals(sequence_globals)
     shots = expand_globals(sequence_globals, evaled_globals)
@@ -816,11 +690,11 @@ def compile_labscript(labscript_file, run_file):
     return proc.returncode, stdout, stderr
 
 
-def compile_labscript_with_globals_files(labscript_file, globals_files, output_path):
-    """Creates a run file output_path, using all the globals from
-    globals_files. Compiles labscript_file with the run file, returning
+def compile_labscript_with_globals(labscript_file, output_path):
+    """Creates a run file output_path, using all the globals from.
+    Compiles labscript_file with the run file, returning
     the processes return code, stdout and stderr."""
-    make_run_file_from_globals_files(labscript_file, globals_files, output_path)
+    make_run_file_from_globals_files(labscript_file, output_path)
     returncode, stdout, stderr = compile_labscript(labscript_file, output_path)
     return returncode, stdout, stderr
 
@@ -888,7 +762,7 @@ def compile_multishot_async(labscript_file, run_files, stream_port, done_callbac
     child.communicate()
 
 
-def compile_labscript_with_globals_files_async(labscript_file, globals_files, output_path, stream_port, done_callback):
+def compile_labscript_with_globals_async(labscript_file, output_path, stream_port, done_callback):
     """Same as compile_labscript_with_globals_files, except it launches a thread to do
     the work and does not return anything. Instead, stderr and stdout will be put to
     stream_port via zmq push in the multipart message format ['stdout','hello, world\n']
@@ -899,7 +773,7 @@ def compile_labscript_with_globals_files_async(labscript_file, globals_files, ou
     labscript_utils.ls_zprocess.ZMQServer. These subclasses will also be configured with
     the appropriate security settings and will be able to receive the messages."""
     try:
-        make_run_file_from_globals_files(labscript_file, globals_files, output_path)
+        make_run_file_from_globals_files(labscript_file, output_path)
         thread = threading.Thread(
             target=compile_labscript_async, args=[labscript_file, output_path, stream_port, done_callback])
         thread.daemon = True
@@ -1085,14 +959,3 @@ def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_strin
     else:
         print(payload)
         return df
-
-
-def globals_diff_shots(file1, file2, max_cols=100):
-    # Get file's globals groups
-    active_groups = get_all_groups(file1)
-
-    # Get other file's globals groups
-    other_groups = get_all_groups(file2)
-
-    print('Globals diff between:\n%s\n%s\n\n' % (file1, file2))
-    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
