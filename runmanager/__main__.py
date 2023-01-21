@@ -2112,46 +2112,14 @@ class RunManager(object):
             self.ui.treeView_groups.setCurrentIndex(name_index)
             self.ui.treeView_groups.edit(name_index)
         if item.column() == self.GROUPS_COL_ACTIVE:
-            # They clicked on the active column. Toggle the checkbox. We do
-            # this manually because setting the item checkable means the model
-            # changes before we catch the mouse click. This is a pain because
-            # we want the ensuing sorting (if the user is sorting by the
-            # enabled column) to keep the the selection. If the user only
-            # selected the column by clicking on it, then the sort happens
-            # before they selected it, and the resort happens without a visual
-            # indication of where the item went, because it never got
-            # selected.
-            state = item.checkState()
-            if state in (QtCore.Qt.Unchecked, QtCore.Qt.PartiallyChecked):
-                item.setCheckState(QtCore.Qt.Checked)
-            elif state == QtCore.Qt.Checked:
-                item.setCheckState(QtCore.Qt.Unchecked)
-            else:
-                raise AssertionError('Invalid Check state')
-            # If this changed the sort order, ensure the item is still visible:
-            scroll_view_to_row_if_current(self.ui.treeView_groups, item)
+            # They clicked on the active column. Do nothing.
+            pass
         elif parent_item is None:
-            # They clicked on a globals file row.
-            globals_file = name_item.text()
-            # What column did they click on?
-            if item.column() == self.GROUPS_COL_OPENCLOSE:
-                # They clicked the close button. Close the file:
-                self.close_globals_file(globals_file)
+            # They clicked on a globals file row. Do nothing.
+            pass
         else:
-            # They clicked on a globals group row.
-            globals_file = parent_item.text()
-            group_name = name_item.text()
-            # What column did they click on?
-            if item.column() == self.GROUPS_COL_DELETE:
-                # They clicked the delete button. Delete the group:
-                self.delete_group(globals_file, group_name, confirm=True)
-            elif item.column() == self.GROUPS_COL_OPENCLOSE:
-                # They clicked the open/close button. Which is it, open or close?
-                group_is_open = item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
-                if group_is_open:
-                    self.close_group(globals_file, group_name)
-                else:
-                    self.open_group(globals_file, group_name)
+            # They clicked on a globals group row. Do nothing.
+            pass
 
     def on_treeView_groups_doubleLeftClicked(self, index):
         item = self.groups_model.itemFromIndex(index)
