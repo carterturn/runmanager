@@ -770,13 +770,6 @@ class GroupTab(object):
             self.on_globals_model_expansion_changed(expansion_item)
 
         # Add the dummy item at the end:
-        dummy_delete_item = QtGui.QStandardItem()
-        # This lets later code know that this row does not correspond to an
-        # actual global:
-        dummy_delete_item.setData(True, self.GLOBALS_ROLE_IS_DUMMY_ROW)
-        dummy_delete_item.setFlags(QtCore.Qt.NoItemFlags)
-        dummy_delete_item.setToolTip('Click to add global')
-
         dummy_name_item = QtGui.QStandardItem(self.GLOBALS_DUMMY_ROW_TEXT)
         dummy_name_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
         dummy_name_item.setToolTip('Click to add global')
@@ -800,7 +793,7 @@ class GroupTab(object):
         dummy_expansion_item.setToolTip('Click to add global')
 
         self.globals_model.appendRow(
-            [dummy_delete_item, dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
+            [dummy_name_item, dummy_value_item, dummy_units_item, dummy_expansion_item])
 
         # Sort by name:
         self.ui.tableView_globals.sortByColumn(self.GLOBALS_COL_NAME, QtCore.Qt.AscendingOrder)
@@ -1340,8 +1333,7 @@ class RunManager(object):
     # Constants for the model in the groups tab:
     GROUPS_COL_NAME = 0
     GROUPS_COL_ACTIVE = 1
-    GROUPS_COL_DELETE = 2
-    GROUPS_COL_OPENCLOSE = 3
+    GROUPS_COL_OPENCLOSE = 2
     GROUPS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
     GROUPS_ROLE_PREVIOUS_NAME = QtCore.Qt.UserRole + 2
     GROUPS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 3
@@ -1520,7 +1512,7 @@ class RunManager(object):
                                                           
     def setup_groups_tab(self):
         self.groups_model = QtGui.QStandardItemModel()
-        self.groups_model.setHorizontalHeaderLabels(['File/group name', 'Active', 'Delete', 'Open/Close'])
+        self.groups_model.setHorizontalHeaderLabels(['File/group name', 'Active', 'Open/Close'])
         self.groups_model.setSortRole(self.GROUPS_ROLE_SORT_DATA)
         self.ui.treeView_groups.setModel(self.groups_model)
         self.ui.treeView_groups.setAnimated(True)  # Pretty
@@ -1984,16 +1976,6 @@ class RunManager(object):
         menu = QtWidgets.QMenu(self.ui)
         menu.addAction(self.action_groups_set_selection_active)
         menu.addAction(self.action_groups_set_selection_inactive)
-        menu.addAction(self.action_groups_delete_selected)
-        menu.addAction(self.action_groups_open_selected)
-        menu.addAction(self.action_groups_close_selected_groups)
-        menu.addAction(self.action_groups_close_selected_files)
-        copy_menu = QtWidgets.QMenu('Copy selected group(s) to...', menu)
-        copy_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document-copy'))
-        menu.addMenu(copy_menu)
-        move_menu = QtWidgets.QMenu('Move selected group(s) to...', menu)
-        move_menu.setIcon(QtGui.QIcon(':/qtutils/fugue/blue-document--arrow'))
-        menu.addMenu(move_menu)
 
         # Create a dict of all filepaths -> filenames
         filenames = {}
@@ -2565,7 +2547,7 @@ class RunManager(object):
         file_close_item.setEditable(False)
         file_close_item.setToolTip('Close globals file.')
 
-        self.groups_model.appendRow([file_name_item, file_active_item, file_delete_item, file_close_item])
+        self.groups_model.appendRow([file_name_item, file_active_item, file_close_item])
 
         # Add the groups as children:
         for group_name in groups:
@@ -2626,13 +2608,6 @@ class RunManager(object):
         group_active_item.setToolTip(
             'Whether or not the globals within this group should be used by runmanager for compilation.')
 
-        group_delete_item = QtGui.QStandardItem()
-        group_delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
-        # Must be set to something so that the dummy row doesn't get sorted first:
-        group_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
-        group_delete_item.setEditable(False)
-        group_delete_item.setToolTip('Delete globals group from file.')
-
         group_open_close_item = QtGui.QStandardItem()
         group_open_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
         group_open_close_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
@@ -2642,7 +2617,7 @@ class RunManager(object):
         group_open_close_item.setEditable(False)
         group_open_close_item.setToolTip('Load globals group into runmananger.')
 
-        row = [group_name_item, group_active_item, group_delete_item, group_open_close_item]
+        row = [group_name_item, group_active_item, group_open_close_item]
         return row
 
     def close_globals_file(self, globals_file, confirm=True):
