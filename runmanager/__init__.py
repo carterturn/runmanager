@@ -787,7 +787,7 @@ def compile_labscript_with_globals_async(labscript_file, output_path, stream_por
 
 def compile_labscript_with_globals_files_async(labscript_file, globals_file, output_path, stream_port, done_callback):
     '''
-    Because BLACS depends on runmanager to compile global files, we need this function (which just ignores globals_file)
+    Because BLACS depends on runmanager to compile connection tables, we need this function (which just ignores globals_file)
     to recompile the connection table.
     '''
     return compile_labscript_with_globals_async(labscript_file, output_path, stream_port, done_callback)

@@ -678,7 +678,7 @@ class GroupTab(object):
         self.ui = loader.load(os.path.join(runmanager_dir, 'group.ui'))
 
         # Add the ui to the parent tabWidget:
-        self.tabWidget.addTab(self.ui, group_name, closable=True)
+        self.tabWidget.addTab(self.ui, group_name, closable=False)
 
         self.set_file_and_group_name(globals_file, group_name)
 
@@ -1563,20 +1563,6 @@ class RunManager(object):
         # Setup stuff for a custom context menu:
         self.ui.treeView_groups.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        # Make the actions for the context menu:
-        self.action_groups_set_selection_active = QtWidgets.QAction(
-            QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected group(s) active', self.ui)
-        self.action_groups_set_selection_inactive = QtWidgets.QAction(
-            QtGui.QIcon(':qtutils/fugue/ui-check-box-uncheck'), 'Set selected group(s) inactive', self.ui)
-        self.action_groups_delete_selected = QtWidgets.QAction(
-            QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected group(s)', self.ui)
-        self.action_groups_open_selected = QtWidgets.QAction(
-            QtGui.QIcon(':/qtutils/fugue/plus'), 'Open selected group(s)', self.ui)
-        self.action_groups_close_selected_groups = QtWidgets.QAction(
-            QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected group(s)', self.ui)
-        self.action_groups_close_selected_files = QtWidgets.QAction(
-            QtGui.QIcon(':/qtutils/fugue/cross'), 'Close selected file(s)', self.ui)
-
         # A counter for keeping track of the recursion depth of
         # self._groups_model_active_changed(). This is used so that some
         # actions can be taken in response to initial data changes, but not to
@@ -1628,14 +1614,6 @@ class RunManager(object):
 
         # Groups tab; right click menu, menu actions, open globals file, new globals file, diff globals file,
         self.ui.treeView_groups.customContextMenuRequested.connect(self.on_treeView_groups_context_menu_requested)
-        self.action_groups_set_selection_active.triggered.connect(
-            lambda: self.on_groups_set_selection_active_triggered(QtCore.Qt.Checked))
-        self.action_groups_set_selection_inactive.triggered.connect(
-            lambda: self.on_groups_set_selection_active_triggered(QtCore.Qt.Unchecked))
-        self.action_groups_delete_selected.triggered.connect(self.on_groups_delete_selected_triggered)
-        self.action_groups_open_selected.triggered.connect(self.on_groups_open_selected_triggered)
-        self.action_groups_close_selected_groups.triggered.connect(self.on_groups_close_selected_groups_triggered)
-        self.action_groups_close_selected_files.triggered.connect(self.on_groups_close_selected_files_triggered)
 
         self.ui.pushButton_reload_globals_file.clicked.connect(self.on_reload_globals_file_clicked)
         self.ui.treeView_groups.leftClicked.connect(self.on_treeView_groups_leftClicked)
@@ -2056,98 +2034,6 @@ class RunManager(object):
             move_menu.addAction(filename, lambda filepath=filepath: self.on_groups_copy_selected_groups_triggered(filepath, True))
 
         menu.exec_(QtGui.QCursor.pos())
-
-    def on_groups_copy_selected_groups_triggered(self, dest_globals_file=None, delete_source_group=False):
-        selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
-        name_items = [item for item in selected_items
-                      if item.column() == self.GROUPS_COL_NAME
-                      and item.parent() is not None]
-        for item in name_items:
-            source_globals_file = item.parent().text()
-            self.copy_group(source_globals_file, item.text(), dest_globals_file, delete_source_group)
-
-    def on_groups_set_selection_active_triggered(self, checked_state):
-        selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        # Filter to only include the 'active' column:
-        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
-        active_items = (item for item in selected_items
-                        if item.column() == self.GROUPS_COL_ACTIVE
-                        and item.parent() is not None)
-        for item in active_items:
-            item.setCheckState(checked_state)
-
-    def on_groups_delete_selected_triggered(self):
-        selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
-        name_items = [item for item in selected_items
-                      if item.column() == self.GROUPS_COL_NAME
-                      and item.parent() is not None]
-        # If multiple selected, show 'delete n groups?' message. Otherwise,
-        # pass confirm=True to self.delete_group so it can show the regular
-        # message.
-        confirm_multiple = (len(name_items) > 1)
-        if confirm_multiple:
-            if not question_dialog("Delete %d groups?" % len(name_items)):
-                return
-        for item in name_items:
-            globals_file = item.parent().text()
-            group_name = item.text()
-            self.delete_group(globals_file, group_name, confirm=not confirm_multiple)
-
-    def on_groups_open_selected_triggered(self):
-        selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        selected_items = [self.groups_model.itemFromIndex(index) for index in selected_indexes]
-        name_items = [item for item in selected_items
-                      if item.column() == self.GROUPS_COL_NAME
-                      and item.parent() is not None]
-
-        # Include all grous of selected globals files:
-        for item in selected_items:
-            if item.parent() is None:
-                children = [item.child(i) for i in range(item.rowCount())]
-                # Exclude <add new group> item, which is not selectable
-                name_items += [child for child in children if child.isSelectable() ]
-
-        filenames = set(item.parent().text() for item in name_items)
-        for item in name_items:
-            globals_file = item.parent().text()
-            group_name = item.text()
-            if (globals_file, group_name) not in self.currently_open_groups:
-                self.open_group(globals_file, group_name, trigger_preparse=False)
-        if name_items:
-            self.globals_changed()
-
-    def on_groups_close_selected_groups_triggered(self):
-        selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
-        name_items = [item for item in selected_items
-                      if item.column() == self.GROUPS_COL_NAME
-                      and item.parent() is not None]
-        for item in name_items:
-            globals_file = item.parent().text()
-            group_name = item.text()
-            if (globals_file, group_name) in self.currently_open_groups:
-                self.close_group(globals_file, group_name)
-
-    def on_groups_close_selected_files_triggered(self):
-        selected_indexes = self.ui.treeView_groups.selectedIndexes()
-        selected_items = (self.groups_model.itemFromIndex(index) for index in selected_indexes)
-        name_items = [item for item in selected_items
-                      if item.column() == self.GROUPS_COL_NAME
-                      and item.parent() is None]
-        child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE)
-                                 for item in name_items
-                                 for i in range(item.rowCount())]
-        child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
-                         for child_item in child_openclose_items]
-        if any(child_is_open):
-            if not question_dialog('Close %d file(s)? This will close %d currently open group(s).' %
-                                   (len(name_items), child_is_open.count(True))):
-                return
-        for item in name_items:
-            globals_file = item.text()
-            self.close_globals_file(globals_file, confirm=False)
 
     def on_reload_globals_file_clicked(self):
         # Determine globals_file from active labscript
@@ -2692,9 +2578,12 @@ class RunManager(object):
 
     def open_globals_file(self, globals_file):
         # Close old globals
+        for i in range(self.groups_model.rowCount()):
+            file_name_item = self.groups_model.item(i, self.GROUPS_COL_NAME)
+            globals_file_name = file_name_item.text()
+            self.close_globals_file(globals_file_name, confirm=False)
         
         runmanager.ingest_globals_file(globals_file)
-        # self.currently_open_groups = runmanager.get_all_groups()
 
         # Get the groups:
         groups = runmanager.get_grouplist()
@@ -2707,7 +2596,7 @@ class RunManager(object):
         file_name_item.setData(globals_file, self.GROUPS_ROLE_SORT_DATA)
 
         file_active_item = QtGui.QStandardItem()
-        file_active_item.setCheckState(QtCore.Qt.Unchecked)
+        file_active_item.setCheckState(QtCore.Qt.Checked)
         # Sort column by CheckState - must keep this updated when checkstate changes:
         file_active_item.setData(QtCore.Qt.Unchecked, self.GROUPS_ROLE_SORT_DATA)
         file_active_item.setEditable(False)
@@ -2729,6 +2618,8 @@ class RunManager(object):
         for group_name in groups:
             row = self.make_group_row(group_name)
             file_name_item.appendRow(row)
+            self.open_group(globals_file, group_name)
+            row[1].setCheckState(QtCore.Qt.Checked)
 
         # Finally, add the <Click to add group> row at the bottom:
         dummy_name_item = QtGui.QStandardItem(self.GROUPS_DUMMY_ROW_TEXT)
