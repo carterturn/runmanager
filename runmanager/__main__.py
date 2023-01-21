@@ -1017,10 +1017,7 @@ class GroupTab(object):
         return item
 
     def do_model_sort(self):
-        header = self.ui.tableView_globals.horizontalHeader()
-        sort_column = header.sortIndicatorSection()
-        sort_order = header.sortIndicatorOrder()
-        self.ui.tableView_globals.sortByColumn(sort_column, sort_order)
+        return # Don't re-sort
 
     def new_global(self, global_name):
         logger.info('%s:%s - new global: %s', self.globals_file, self.group_name, global_name)
