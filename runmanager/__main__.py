@@ -651,11 +651,10 @@ class ItemDelegate(QtWidgets.QStyledItemDelegate):
 
 
 class GroupTab(object):
-    GLOBALS_COL_DELETE = 0
-    GLOBALS_COL_NAME = 1
-    GLOBALS_COL_VALUE = 2
-    GLOBALS_COL_UNITS = 3
-    GLOBALS_COL_EXPANSION = 4
+    GLOBALS_COL_NAME = 0
+    GLOBALS_COL_VALUE = 1
+    GLOBALS_COL_UNITS = 2
+    GLOBALS_COL_EXPANSION = 3
 
     GLOBALS_ROLE_IS_DUMMY_ROW = QtCore.Qt.UserRole + 1
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
@@ -683,7 +682,7 @@ class GroupTab(object):
         self.set_file_and_group_name(globals_file, group_name)
 
         self.globals_model = AlternatingColorModel(view=self.ui.tableView_globals)
-        self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name', 'Value', 'Units', 'Expansion'])
+        self.globals_model.setHorizontalHeaderLabels(['Name', 'Value', 'Units', 'Expansion'])
         self.globals_model.setSortRole(self.GLOBALS_ROLE_SORT_DATA)
 
         self.ui.tableView_globals.setModel(self.globals_model)
@@ -702,8 +701,6 @@ class GroupTab(object):
         # Setup stuff for a custom context menu:
         self.ui.tableView_globals.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         # Make the actions for the context menu:
-        self.action_globals_delete_selected = QtWidgets.QAction(
-            QtGui.QIcon(':qtutils/fugue/minus'), 'Delete selected global(s)',  self.ui)
         self.action_globals_set_selected_true = QtWidgets.QAction(
             QtGui.QIcon(':qtutils/fugue/ui-check-box'), 'Set selected Booleans True',  self.ui)
         self.action_globals_set_selected_false = QtWidgets.QAction(
@@ -725,7 +722,6 @@ class GroupTab(object):
             self.ui.tableView_globals.setColumnWidth(self.GLOBALS_COL_UNITS, 100)
         if self.ui.tableView_globals.columnWidth(self.GLOBALS_COL_EXPANSION) < 100:
             self.ui.tableView_globals.setColumnWidth(self.GLOBALS_COL_EXPANSION, 100)
-        self.ui.tableView_globals.resizeColumnToContents(self.GLOBALS_COL_DELETE)
 
         # Error state of tab
         self.tab_contains_errors = False
@@ -737,7 +733,6 @@ class GroupTab(object):
             lambda: self.on_globals_set_selected_bools_triggered('True'))
         self.action_globals_set_selected_false.triggered.connect(
             lambda: self.on_globals_set_selected_bools_triggered('False'))
-        self.action_globals_delete_selected.triggered.connect(self.on_globals_delete_selected_triggered)
         self.globals_model.itemChanged.connect(self.on_globals_model_item_changed)
         # A context manager with which we can temporarily disconnect the above connection.
         self.globals_model_item_changed_disconnected = DisconnectContextManager(
@@ -816,13 +811,6 @@ class GroupTab(object):
         # self.update_parse_indication after runmanager has a chance to parse
         # everything and get back to us about what that data should be.
 
-        delete_item = QtGui.QStandardItem()
-        delete_item.setIcon(QtGui.QIcon(':qtutils/fugue/minus'))
-        # Must be set to something so that the dummy row doesn't get sorted first:
-        delete_item.setData(False, self.GLOBALS_ROLE_SORT_DATA)
-        delete_item.setEditable(False)
-        delete_item.setToolTip('Delete global from group.')
-
         name_item = QtGui.QStandardItem(name)
         name_item.setData(name, self.GLOBALS_ROLE_SORT_DATA)
         name_item.setData(name, self.GLOBALS_ROLE_PREVIOUS_TEXT)
@@ -846,7 +834,7 @@ class GroupTab(object):
         expansion_item.setData(expansion, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         expansion_item.setToolTip('')
 
-        row = [delete_item, name_item, value_item, units_item, expansion_item]
+        row = [name_item, value_item, units_item, expansion_item]
         return row
 
     def on_tableView_globals_leftClicked(self, index):
@@ -872,9 +860,6 @@ class GroupTab(object):
                 value_item.setText('True')
             else:
                 raise AssertionError('expected boolean value')
-        elif item.column() == self.GLOBALS_COL_DELETE:
-            # They clicked a delete button.
-            self.delete_global(global_name)
         elif not item.data(self.GLOBALS_ROLE_IS_BOOL):
             # Edit whatever it is:
             if (self.ui.tableView_globals.currentIndex() != index
