@@ -2228,12 +2228,8 @@ class RunManager(object):
         # were to use the same QIcon instance. So to avoid infinite recursion
         # we temporarily disconnect the signal whilst we set the icons.
         with self.groups_model_item_changed_disconnected:
-            if group_is_open:
-                item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
-                item.setToolTip('Close globals group.')
-            else:
-                item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
-                item.setToolTip('Load globals group into runmanager.')
+            item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
+            item.setToolTip('Group is open.')
             self.do_model_sort()
             # If this changed the sort order, ensure the item is still visible:
             scroll_view_to_row_if_current(self.ui.treeView_groups, item)
@@ -2479,10 +2475,7 @@ class RunManager(object):
         return item
 
     def do_model_sort(self):
-        header = self.ui.treeView_groups.header()
-        sort_column = header.sortIndicatorSection()
-        sort_order = header.sortIndicatorOrder()
-        self.ui.treeView_groups.sortByColumn(sort_column, sort_order)
+        return # Don't re-sort
 
     @inmain_decorator()  # Can be called from a non-main thread
     def get_active_groups(self, interactive=True):
@@ -2543,9 +2536,9 @@ class RunManager(object):
         file_delete_item.setData(False, self.GROUPS_ROLE_SORT_DATA)
 
         file_close_item = QtGui.QStandardItem()
-        file_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/cross'))
+        file_close_item.setIcon(QtGui.QIcon(':qtutils/fugue/plus'))
         file_close_item.setEditable(False)
-        file_close_item.setToolTip('Close globals file.')
+        file_close_item.setToolTip('File is open.')
 
         self.groups_model.appendRow([file_name_item, file_active_item, file_close_item])
 
