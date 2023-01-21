@@ -161,7 +161,7 @@ def new_global(groupname, globalname):
         raise ValueError('%s is not a group'%groupname)
     if globalname in ACTIVE_GLOBALS_DICT[groupname]:
         raise Exception('Can\'t create global: target name already exists.')
-    ACTIVE_GLOBALS_DICT[groupname][globalname] = ('', '', '')
+    ACTIVE_GLOBALS_DICT[groupname][globalname] = ['', '', '']
 
 def rename_global(groupname, oldglobalname, newglobalname):
     if oldglobalname == newglobalname:
