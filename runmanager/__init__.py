@@ -37,10 +37,11 @@ process_tree = ProcessTree.instance()
 
 from .__version__ import __version__
 
-# String used to denote a group in the global variables file
-RUNMANAGER_GROUP_MARKER = '###'
+# Regular expression used to extract a group name in the global variables file
+global_group_re = re.compile(r'###\s+(.*)')
 # Regular expression to extract a global variable from the global variables file
-global_re = re.compile(r'([^= ]+) = (.+)')
+global_re = re.compile(r'([^= ]+) = ([^#]+)(#.*)?')
+global_list_re = re.compile(r'#list\s+(.*)')
 
 # Dictionary of global variables.
 # Top level keys are group names, with values being dictionaries
@@ -237,16 +238,32 @@ def ingest_globals_file(globals_file):
         current_group = None
 
         for line in f:
-            if line[:len(RUNMANAGER_GROUP_MARKER)] == RUNMANAGER_GROUP_MARKER:
-                current_group = line[len(RUNMANAGER_GROUP_MARKER)+1:]
+            line_match = global_group_re.match(line)
+            if line_match:
+                current_group = line_match.groups()[0]
 
                 if current_group not in ACTIVE_GLOBALS_DICT.keys():
                     ACTIVE_GLOBALS_DICT[current_group] = {}
-            else:
-                line_match = global_re.match(line)
-                if line_match:
-                    line_list = [line_match.groups()[1], '', '']
-                    ACTIVE_GLOBALS_DICT[current_group][line_match.groups()[0]] = line_list
+
+                continue
+
+            line_match = global_re.match(line)
+            if line_match:
+                value = line_match.groups()[1].strip()
+                units = ''
+                comment = line_match.groups()[2]
+
+                if comment:
+                    comment = comment.strip()
+                    list_match = global_list_re.match(comment)
+                    if list_match:
+                        value = [v.strip() for v in list_match.groups()[0].split(',')]
+                        units = 'list'
+                    else:
+                        value = value + ' ' + comment
+
+                line_list = [value, units, '']
+                ACTIVE_GLOBALS_DICT[current_group][line_match.groups()[0]] = line_list
     return
 
 def get_all_groups():

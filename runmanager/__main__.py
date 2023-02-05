@@ -660,6 +660,7 @@ class GroupTab(object):
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
+    GLOBALS_ROLE_IS_LIST = QtCore.Qt.UserRole + 5
 
     COLOR_ERROR = '#F79494'  # light red
     COLOR_OK = '#A5F7C6'  # light green
@@ -759,6 +760,15 @@ class GroupTab(object):
             logger.info('setting tab icon')
             self.tabWidget.setTabIcon(index, icon)
 
+    def update_list_value(self, item, new_value):
+        index = item.index()
+        item.setText(new_value)
+        previous_value = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        global_name = name_item.text()
+        self.change_global_value(global_name, previous_value, new_value)
+
     def populate_model(self):
         globals = runmanager.get_globals([self.group_name])[self.group_name]
         for name, (value, units, expansion) in globals.items():
@@ -766,6 +776,14 @@ class GroupTab(object):
             self.globals_model.appendRow(row)
             value_item = row[self.GLOBALS_COL_VALUE]
             self.check_for_boolean_values(value_item)
+            if units == 'list':
+                value_idx = self.globals_model.indexFromItem(value_item)
+                combo_box = QtWidgets.QComboBox()
+                combo_box.addItems([str(v) for v in value])
+                value_update_lambda = lambda v, i=value_item: self.update_list_value(i, v)
+                combo_box.currentTextChanged.connect(value_update_lambda)
+                self.ui.tableView_globals.setIndexWidget(value_idx, combo_box)
+                self.update_list_value(value_item, combo_box.currentText())
             expansion_item = row[self.GLOBALS_COL_EXPANSION]
             self.on_globals_model_expansion_changed(expansion_item)
 
@@ -810,13 +828,20 @@ class GroupTab(object):
         name_item.setToolTip(name)
         name_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
 
-        value_item = QtGui.QStandardItem(value)
-        value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
-        value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        if units == 'list':
+            value_item = QtGui.QStandardItem(value[0])
+            value_item.setData(value[0], self.GLOBALS_ROLE_SORT_DATA)
+            value_item.setData(str(value[0]), self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        else:
+            value_item = QtGui.QStandardItem(value)
+            value_item.setData(value, self.GLOBALS_ROLE_SORT_DATA)
+            value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
         value_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
 
         units_item = QtGui.QStandardItem(units)
+        if units == 'list':
+            units_item.setEditable(False)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
         units_item.setData(units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
         units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
@@ -1191,7 +1216,8 @@ class GroupTab(object):
         else:
             was_bool = units_item.data(self.GLOBALS_ROLE_IS_BOOL)
             units_item.setData(False, self.GLOBALS_ROLE_IS_BOOL)
-            units_item.setEditable(True)
+            if units_item.text() != 'list':
+                units_item.setEditable(True)
             # Checkbox still visible unless we do the following:
             units_item.setData(None, QtCore.Qt.CheckStateRole)
             units_item.setData(None, QtCore.Qt.BackgroundRole)
@@ -2512,7 +2538,6 @@ class RunManager(object):
 
         # Get the groups:
         groups = runmanager.get_grouplist()
-        print(groups)
         # Add the parent row:
         file_name_item = QtGui.QStandardItem(globals_file)
         file_name_item.setEditable(False)
