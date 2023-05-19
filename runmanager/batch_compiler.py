@@ -70,6 +70,14 @@ class BatchProcessor(object):
                         f.read(), self.script_module.__file__, 'exec', dont_inherit=True
                     )
                     exec(code, self.script_module.__dict__)
+            # Append all python files in script folder to the h5 file
+            with h5py.File(run_file, 'a') as hdf5_file:
+                for source_file in os.listdir():
+                    if source_file.endswith('.py'):
+                        save_path = 'sources/' + source_file
+                        if save_path in hdf5_file:
+                            continue
+                        hdf5_file.create_dataset(save_path, data=open(source_file).read())
             return True
         except Exception:
             traceback_lines = traceback.format_exception(*sys.exc_info())
