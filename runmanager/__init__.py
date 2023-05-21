@@ -185,7 +185,10 @@ def get_value(groupname, globalname):
 def set_value(groupname, globalname, value):
     if groupname in ACTIVE_GLOBALS_DICT:
         if globalname in ACTIVE_GLOBALS_DICT[groupname]:
-            ACTIVE_GLOBALS_DICT[groupname][globalname][0] = value
+            if ACTIVE_GLOBALS_DICT[groupname][globalname][1] == 'list':
+                ACTIVE_GLOBALS_DICT[groupname][globalname][0][0] = value
+            else:
+                ACTIVE_GLOBALS_DICT[groupname][globalname][0] = value
 
 def get_units(groupname, globalname):
     if groupname in ACTIVE_GLOBALS_DICT:
@@ -266,6 +269,24 @@ def ingest_globals_file(globals_file):
                 ACTIVE_GLOBALS_DICT[current_group][line_match.groups()[0]] = line_list
     return
 
+def exude_globals_file(globals_file):
+    if globals_file is None:
+        return
+    with open(globals_file, 'w') as f:
+        for group in ACTIVE_GLOBALS_DICT:
+            f.write('### {}\n'.format(group)) # Write group header
+
+            for var_name in ACTIVE_GLOBALS_DICT[group]:
+                value = ''
+                if ACTIVE_GLOBALS_DICT[group][var_name][1] == 'list':
+                    v_list = ACTIVE_GLOBALS_DICT[group][var_name][0]
+                    value = v_list[0] + ' #list ' + ', '.join(['{}'.format(vl) for vl in v_list])
+                else:
+                    value = ACTIVE_GLOBALS_DICT[group][var_name][0]
+
+                f.write('{} = {}\n'.format(var_name, value))
+    return
+
 def get_all_groups():
     """returns a list of group names in the global variables dictionary"""
     return list(ACTIVE_GLOBALS_DICT)
@@ -319,6 +340,8 @@ def evaluate_globals(sequence_globals, raise_exceptions=True):
                     results[other_group_name][global_name] = exception
                 multiply_defined_globals.add(global_name)
             all_globals[global_name], units, expansion = sequence_globals[group_name][global_name]
+            if units == 'list':
+                all_globals[global_name] = all_globals[global_name][0]
             expansions[global_name] = expansion
 
     # Do not attempt to evaluate globals which are multiply defined:

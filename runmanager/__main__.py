@@ -1616,6 +1616,8 @@ class RunManager(object):
         self.ui.treeView_groups.customContextMenuRequested.connect(self.on_treeView_groups_context_menu_requested)
 
         self.ui.pushButton_reload_globals_file.clicked.connect(self.on_reload_globals_file_clicked)
+        self.ui.pushButton_save_globals_file.clicked.connect(self.on_save_globals_file_clicked)
+        self.ui.pushButton_save_globals_file_as.clicked.connect(self.on_save_globals_file_as_clicked)
         self.ui.treeView_groups.leftClicked.connect(self.on_treeView_groups_leftClicked)
         self.ui.treeView_groups.doubleLeftClicked.connect(self.on_treeView_groups_doubleLeftClicked)
         self.groups_model.itemChanged.connect(self.on_groups_model_item_changed)
@@ -2037,6 +2039,35 @@ class RunManager(object):
         self.last_opened_globals_folder = os.path.dirname(globals_file)
         # Open the file:
         self.open_globals_file(globals_file)
+
+    def on_save_globals_file_clicked(self):
+        # Determine globals_file from active labscript
+        globals_file = self.get_active_globals_file()
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        globals_file = os.path.abspath(globals_file)
+        # Save the containing folder for use next time we open the dialog box:
+        self.last_opened_globals_folder = os.path.dirname(globals_file)
+        # Open the file:
+        self.save_globals_file(globals_file)
+
+    def on_save_globals_file_as_clicked(self):
+        globals_file = QtWidgets.QFileDialog.getSaveFileName(self.ui,
+                                                             'Select globals file to save to',
+                                                             self.last_opened_globals_folder,
+                                                             "Python files (*.py)")
+        if type(globals_file) is tuple:
+            globals_file, _ = globals_file
+
+        if not globals_file:
+            # User cancelled
+            return
+
+        # Convert to standard platform specific path, otherwise Qt likes forward slashes:
+        globals_file = os.path.abspath(globals_file)
+        # Save the containing folder for use next time we open the dialog box:
+        self.last_opened_globals_folder = os.path.dirname(globals_file)
+        # Open the file:
+        self.save_globals_file(globals_file)
 
     def on_diff_globals_file_clicked(self):
         globals_file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
@@ -2655,6 +2686,9 @@ class RunManager(object):
         # Remove the globals file from the model:
         self.groups_model.removeRow(item.row())
         self.globals_changed()
+
+    def save_globals_file(self, globals_file):
+        runmanager.exude_globals_file(globals_file)
 
     def copy_group(self, source_globals_file, source_group_name, dest_globals_file=None, delete_source_group=False):
         """This function copys a group of globals with the name source_group_name from the file
