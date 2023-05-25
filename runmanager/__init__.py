@@ -260,7 +260,7 @@ def ingest_globals_file(globals_file):
                     comment = comment.strip()
                     list_match = global_list_re.match(comment)
                     if list_match:
-                        value = [v.strip() for v in list_match.groups()[0].split(',')]
+                        value = [value] + [v.strip() for v in list_match.groups()[0].split(',')]
                         units = 'list'
                     else:
                         value = value + ' ' + comment
@@ -273,14 +273,18 @@ def exude_globals_file(globals_file):
     if globals_file is None:
         return
     with open(globals_file, 'w') as f:
+        first_row = True
         for group in ACTIVE_GLOBALS_DICT:
+            if not first_row:
+                f.write('\n')
+            first_row = False
             f.write('### {}\n'.format(group)) # Write group header
 
             for var_name in ACTIVE_GLOBALS_DICT[group]:
                 value = ''
                 if ACTIVE_GLOBALS_DICT[group][var_name][1] == 'list':
                     v_list = ACTIVE_GLOBALS_DICT[group][var_name][0]
-                    value = v_list[0] + ' #list ' + ', '.join(['{}'.format(vl) for vl in v_list])
+                    value = v_list[0] + ' #list ' + ', '.join(['{}'.format(vl) for vl in v_list[1:]])
                 else:
                     value = ACTIVE_GLOBALS_DICT[group][var_name][0]
 

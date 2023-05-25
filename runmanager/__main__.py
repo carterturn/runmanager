@@ -779,7 +779,9 @@ class GroupTab(object):
             if units == 'list':
                 value_idx = self.globals_model.indexFromItem(value_item)
                 combo_box = QtWidgets.QComboBox()
-                combo_box.addItems([str(v) for v in value])
+                value_list = [str(v) for v in value[1:]]
+                combo_box.addItems(value_list)
+                combo_box.setCurrentIndex(value_list.index(str(value[0])))
                 value_update_lambda = lambda v, i=value_item: self.update_list_value(i, v)
                 combo_box.currentTextChanged.connect(value_update_lambda)
                 self.ui.tableView_globals.setIndexWidget(value_idx, combo_box)
