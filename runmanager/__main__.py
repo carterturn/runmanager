@@ -2638,6 +2638,13 @@ class RunManager(object):
         # If this changed the sort order, ensure the file item is visible:
         scroll_view_to_row_if_current(self.ui.treeView_groups, file_name_item)
 
+        # Regenerate expansions
+        self.previous_evaled_globals = {}
+        self.previous_global_hierarchy = {}
+        self.previous_expansion_types = {}
+        self.previous_expansions = {}
+        self.globals_changed()
+
     def make_group_row(self, group_name):
         """Returns a new row representing one group in the groups tab, ready to be
         inserted into the model."""
