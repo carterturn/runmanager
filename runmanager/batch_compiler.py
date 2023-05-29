@@ -28,6 +28,8 @@ from types import ModuleType
 import labscript
 from labscript_utils.modulewatcher import ModuleWatcher
 
+import h5py
+
 class BatchProcessor(object):
     def __init__(self, to_parent, from_parent, kill_lock):
         self.to_parent = to_parent
