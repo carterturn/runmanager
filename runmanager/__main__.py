@@ -980,7 +980,6 @@ class GroupTab(object):
         menu = QtWidgets.QMenu(self.ui)
         menu.addAction(self.action_globals_set_selected_true)
         menu.addAction(self.action_globals_set_selected_false)
-        menu.addAction(self.action_globals_delete_selected)
         menu.exec_(QtGui.QCursor.pos())
 
     def on_globals_delete_selected_triggered(self):
