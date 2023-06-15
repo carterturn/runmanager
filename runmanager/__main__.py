@@ -1630,7 +1630,9 @@ class RunManager(object):
         engage_shortcut = QtWidgets.QShortcut('F5', self.ui,
             lambda: self.ui.pushButton_engage.clicked.emit(False))
         engage_shortcut.setAutoRepeat(False)
-        QtWidgets.QShortcut('ctrl+W', self.ui, self.close_current_tab)
+        engage_shortcut_1 = QtWidgets.QShortcut('ctrl+E', self.ui,
+            lambda: self.ui.pushButton_engage.clicked.emit(False))
+        engage_shortcut_1.setAutoRepeat(False)
         QtWidgets.QShortcut('ctrl+Tab', self.ui, lambda: self.switch_tabs(+1))
         QtWidgets.QShortcut('ctrl+shift+Tab', self.ui, lambda: self.switch_tabs(-1))
 
@@ -1654,12 +1656,6 @@ class RunManager(object):
                 self.save_configuration(self.last_save_config_file)
         self.to_child.put(['quit', None])
         return True
-
-    def close_current_tab(self):
-        current_tab_widget = self.ui.tabWidget.currentWidget()
-        for (globals_file, group_name), tab in self.currently_open_groups.items():
-            if tab.ui is current_tab_widget:
-                self.close_group(globals_file, group_name)
 
     def switch_tabs(self, change):
         current_index = self.ui.tabWidget.currentIndex()
