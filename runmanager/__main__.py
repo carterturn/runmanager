@@ -754,6 +754,11 @@ class GroupTab(object):
                 self.update_enum_item(item, combo_box.currentText())
                 item.setData(True, self.GLOBALS_ROLE_IS_ENUM)
                 item.setEditable(False)
+            else:
+                # Update enum value
+                new_index = combo_box.findText(value)
+                if new_index > -1:
+                    combo_box.setCurrentIndex(new_index)
         elif value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
