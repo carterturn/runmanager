@@ -756,6 +756,7 @@ class GroupTab(object):
                 item.setEditable(False)
             else:
                 # Update enum value
+                combo_box = self.ui.tableView_globals.indexWidget(index)
                 new_index = combo_box.findText(value)
                 if new_index > -1:
                     combo_box.setCurrentIndex(new_index)
