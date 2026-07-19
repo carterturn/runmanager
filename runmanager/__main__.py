@@ -64,7 +64,7 @@ import runmanager.remote
 import runmanager.compiler as compiler
 import runmanager.differ as differ
 import runmanager.tokenizer as tokenizer
-import runmanager.group_manager as group_manager
+from runmanager.group_manager import GroupManager, evaluate_globals, guess_expansion_type
 from runmanager.exceptions import ExpansionError
 from runmanager.widgets import RunmanagerColors, FingerTabWidget, TableView, TreeView, TabToolButton, AlternatingColorModel
 
@@ -158,7 +158,7 @@ class GroupTab(object):
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
 
-    def __init__(self, tabWidget, globals_file, group_name):
+    def __init__(self, tabWidget, globals_group):
 
         self.logger = setup_logging('runmanager.groupTab')
 
@@ -169,10 +169,10 @@ class GroupTab(object):
         loader.registerCustomWidget(TableView)
         self.ui = loader.load(os.path.join(runmanager_dir, 'group.ui'))
 
-        # Add the ui to the parent tabWidget:
-        self.tabWidget.addTab(self.ui, group_name, closable=True)
+        self.group = globals_group
 
-        self.set_file_and_group_name(globals_file, group_name)
+        # Add the ui to the parent tabWidget:
+        self.tabWidget.addTab(self.ui, self.group.name, closable=True)
 
         self.globals_model = AlternatingColorModel(view=self.ui.tableView_globals)
         self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name', 'Value', 'Units', 'Expansion'])
@@ -205,7 +205,7 @@ class GroupTab(object):
 
         # Populate the model with globals from the h5 file:
         self.populate_model()
-        self.logger.info(f'Initial population of {self.group_name}')
+        self.logger.info(f'Initial population of {self.group.name}')
         # Set sensible column widths:
         for col in range(self.globals_model.columnCount()):
             if col != self.GLOBALS_COL_VALUE:
@@ -236,16 +236,15 @@ class GroupTab(object):
         self.globals_model_item_changed_disconnected = DisconnectContextManager(
             self.globals_model.itemChanged, self.on_globals_model_item_changed)
 
-    def set_file_and_group_name(self, globals_file, group_name):
+    def update_group_name(self, group_name):
         """Provided as a separate method so the main app can call it if the
         group gets renamed"""
-        self.globals_file = globals_file
-        self.group_name = group_name
-        self.ui.label_globals_file.setText(globals_file)
-        self.ui.label_group_name.setText(group_name)
+        self.group.rename(group_name)
+        self.ui.label_globals_file.setText(self.globals_group.get_filename())
+        self.ui.label_group_name.setText(self.group.name)
         index = self.tabWidget.indexOf(self.ui)
-        self.tabWidget.setTabText(index, group_name)
-        self.tabWidget.setTabToolTip(index, '%s\n(%s)' % (group_name, globals_file))
+        self.tabWidget.setTabText(index, self.group.name)
+        self.tabWidget.setTabToolTip(index, '%s\n(%s)' % (self.group.name, self.group.get_filename()))
 
     def set_tab_icon(self, icon_string):
         index = self.tabWidget.indexOf(self.ui)
@@ -257,7 +256,7 @@ class GroupTab(object):
             self.tabWidget.setTabIcon(index, icon)
 
     def populate_model(self):
-        globals = group_manager.get_globals({self.group_name: self.globals_file})[self.group_name]
+        globals = self.group.get_globals()
         for name, (value, units, expansion) in globals.items():
             row = self.make_global_row(name, value, units, expansion)
             self.globals_model.appendRow(row)
@@ -303,7 +302,7 @@ class GroupTab(object):
         self.ui.tableView_globals.sortByColumn(self.GLOBALS_COL_NAME, QtCore.Qt.AscendingOrder)
 
     def make_global_row(self, name, value='', units='', expansion=''):
-        self.logger.debug('%s:%s - make global row: %s ' % (self.globals_file, self.group_name, name))
+        self.logger.debug('%s:%s - make global row: %s ' % (self.group.get_filename(), self.group.name, name))
         # We just set some data here, other stuff is set in
         # self.update_parse_indication after runmanager has a chance to parse
         # everything and get back to us about what that data should be.
@@ -537,11 +536,11 @@ class GroupTab(object):
         self.ui.tableView_globals.sortByColumn(sort_column, sort_order)
 
     def new_global(self, global_name):
-        self.logger.info('%s:%s - new global: %s', self.globals_file, self.group_name, global_name)
+        self.logger.info('%s:%s - new global: %s', self.group.get_filename(), self.group.name, global_name)
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME,
                                             previous_name=self.GLOBALS_DUMMY_ROW_TEXT)
         try:
-            group_manager.new_global(self.globals_file, self.group_name, global_name)
+            self.group.new_global(global_name)
         except Exception as e:
             error_dialog(str(e))
         else:
@@ -564,11 +563,11 @@ class GroupTab(object):
 
     def rename_global(self, previous_global_name, new_global_name):
         self.logger.info('%s:%s - rename global: %s -> %s',
-                    self.globals_file, self.group_name, previous_global_name, new_global_name)
+                    self.group.get_filename(), self.group.name, previous_global_name, new_global_name)
         item = self.get_global_item_by_name(new_global_name, self.GLOBALS_COL_NAME,
                                             previous_name=previous_global_name)
         try:
-            group_manager.rename_global(self.globals_file, self.group_name, previous_global_name, new_global_name)
+            self.group.rename_global(previous_global_name, new_global_name)
         except Exception as e:
             error_dialog(str(e))
             # Set the item text back to the old name, since the rename failed:
@@ -592,7 +591,7 @@ class GroupTab(object):
 
     def change_global_value(self, global_name, previous_value, new_value, interactive=True):
         self.logger.info('%s:%s - change global value: %s = %s -> %s' %
-                    (self.globals_file, self.group_name, global_name, previous_value, new_value))
+                    (self.group.get_filename(), self.group.name, global_name, previous_value, new_value))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
         if not interactive:
             # Value was not set interactively by the user, it is up to us to set it:
@@ -612,7 +611,7 @@ class GroupTab(object):
 
     def complete_change_global_value(self, global_name, previous_value, new_value, item, previous_background, previous_icon, interactive=True):
         try:
-            group_manager.set_value(self.globals_file, self.group_name, global_name, new_value)
+            self.group.set_value(global_name, new_value)
         except Exception as e:
             if interactive:
                 error_dialog(str(e))
@@ -645,10 +644,10 @@ class GroupTab(object):
 
     def change_global_units(self, global_name, previous_units, new_units):
         self.logger.info('%s:%s - change units: %s = %s -> %s' %
-                    (self.globals_file, self.group_name, global_name, previous_units, new_units))
+                    (self.group.get_filename(), self.group.name, global_name, previous_units, new_units))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
         try:
-            group_manager.set_units(self.globals_file, self.group_name, global_name, new_units)
+            self.group.set_units(global_name, new_units)
         except Exception as e:
             error_dialog(str(e))
             # Set the item text back to the old units, since the change failed:
@@ -662,10 +661,10 @@ class GroupTab(object):
 
     def change_global_expansion(self, global_name, previous_expansion, new_expansion):
         self.logger.info('%s:%s - change expansion: %s = %s -> %s' %
-                    (self.globals_file, self.group_name, global_name, previous_expansion, new_expansion))
+                    (self.group.get_filename(), self.group.name, global_name, previous_expansion, new_expansion))
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
         try:
-            group_manager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
+            self.group.set_expansion(global_name, new_expansion)
         except Exception as e:
             error_dialog(str(e))
             # Set the item text back to the old units, since the change failed:
@@ -690,7 +689,7 @@ class GroupTab(object):
         units_item = self.globals_model.itemFromIndex(units_index)
         global_name = name_item.text()
         self.logger.debug('%s:%s - check for boolean values: %s' %
-                     (self.globals_file, self.group_name, global_name))
+                     (self.group.get_filename(), self.group.name, global_name))
         if value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
@@ -738,11 +737,11 @@ class GroupTab(object):
 
     def delete_global(self, global_name, confirm=True):
         self.logger.info('%s:%s - delete global: %s' %
-                    (self.globals_file, self.group_name, global_name))
+                    (self.group.get_filename(), self.group.name, global_name))
         if confirm:
             if not question_dialog("Delete the global '%s'?" % global_name):
                 return
-        group_manager.delete_global(self.globals_file, self.group_name, global_name)
+        self.group.delete_global(global_name)
         # Find the entry for this global in self.globals_model and remove it:
         name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
         self.globals_model.removeRow(name_item.row())
@@ -750,9 +749,9 @@ class GroupTab(object):
 
     def update_parse_indication(self, active_groups, sequence_globals, evaled_globals):
         # Check that we are an active group:
-        if self.group_name in active_groups and active_groups[self.group_name] == self.globals_file:
+        if self.group.name in active_groups and active_groups[self.group.name] == self.group.get_filename():
             self.tab_contains_errors = False
-            # for global_name, value in evaled_globals[self.group_name].items():
+            # for global_name, value in evaled_globals[self.group.name].items():
             for i in range(self.globals_model.rowCount()):
                 name_item = self.globals_model.item(i, self.GLOBALS_COL_NAME)
                 if name_item.data(self.GLOBALS_ROLE_IS_DUMMY_ROW):
@@ -762,9 +761,9 @@ class GroupTab(object):
                 # value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
                 # expansion_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
                 global_name = name_item.text()
-                value = evaled_globals[self.group_name][global_name]
+                value = evaled_globals[self.group.name][global_name]
 
-                ignore, ignore, expansion = sequence_globals[self.group_name][global_name]
+                ignore, ignore, expansion = sequence_globals[self.group.name][global_name]
                 # Temporarily disconnect the item_changed signal on the model
                 # so that we can set the expansion type without triggering
                 # another preparse - the parsing has already been done with
@@ -946,6 +945,8 @@ class RunManager(object):
         self.experiment_shot_storage = self.exp_config.get('paths', 'experiment_shot_storage')
         # Store the currently open groups as {(globals_filename, group_name): GroupTab}
         self.currently_open_groups = {}
+        # Create group mananger to manage the groups of globals
+        self.group_manager = GroupManager()
 
         # A thread that will evaluate globals when they change, allowing us to
         # show their values and any errors in the tabs they came from.
@@ -1716,7 +1717,7 @@ class RunManager(object):
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_globals_folder = os.path.dirname(globals_file)
         # Create the new file and open it:
-        group_manager.new_globals_file(globals_file)
+        self.group_manager.new_file(globals_file)
         self.open_globals_file(globals_file)
 
     def on_diff_globals_file_clicked(self):
@@ -1741,14 +1742,17 @@ class RunManager(object):
             return
 
         # Get file's globals groups
-        other_groups = group_manager.get_all_groups(globals_file)
+        other_manager = GroupManager()
+        other_file = other_manager.open_file(globals_file)
+        other_groups = other_file.get_grouplist()
+        other_groups = {g: globals_file for g in other_groups}
 
         # Display the output tab so the user can see the output:
         self.ui.tabWidget.setCurrentWidget(self.ui.tab_output)
         self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
 
         # Do the globals diff
-        globals_diff_table = differ.globals_diff_groups(active_groups, other_groups)
+        globals_diff_table = differ.globals_diff_groups(self.group_manager, active_groups, other_manager, other_groups)
         self.output_box.output(globals_diff_table)
         self.output_box.output('Ready.\n\n')
 
@@ -2254,8 +2258,11 @@ class RunManager(object):
         if self.groups_model.findItems(globals_file, column=self.GROUPS_COL_NAME):
             return
 
+        if globals_file not in self.group_manager:
+            self.group_manager.open_file(globals_file)
+
         # Get the groups:
-        groups = group_manager.get_grouplist(globals_file)
+        groups = self.group_manager[globals_file].get_grouplist()
         # Add the parent row:
         file_name_item = QtGui.QStandardItem(globals_file)
         file_name_item.setEditable(False)
@@ -2375,6 +2382,8 @@ class RunManager(object):
             group_name = name_item.text()
             self.close_group(globals_file, group_name)
 
+        self.group_manager.close_file(globals_file)
+
         # Remove the globals file from the model:
         self.groups_model.removeRow(item.row())
         self.globals_changed()
@@ -2386,7 +2395,7 @@ class RunManager(object):
         if delete_source_group and source_globals_file == dest_globals_file:
             return
         try:
-            dest_group_name = group_manager.copy_group(source_globals_file, source_group_name, dest_globals_file, delete_source_group)
+            dest_group_name = self.group_manager.copy_group(source_globals_file, source_group_name, dest_globals_file, delete_source_group)
         except Exception as e:
             error_dialog(str(e))
         else:
@@ -2424,7 +2433,7 @@ class RunManager(object):
         item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME,
                                            previous_name=self.GROUPS_DUMMY_ROW_TEXT)
         try:
-            group_manager.new_group(globals_file, group_name)
+            self.group_manager[globals_file].new_group(group_name)
         except Exception as e:
             error_dialog(str(e))
         else:
@@ -2450,7 +2459,7 @@ class RunManager(object):
 
     def open_group(self, globals_file, group_name, trigger_preparse=True):
         assert (globals_file, group_name) not in self.currently_open_groups  # sanity check
-        group_tab = GroupTab(self.ui.tabWidget, globals_file, group_name)
+        group_tab = GroupTab(self.ui.tabWidget, self.group_manager[globals_file][group_name])
         self.currently_open_groups[globals_file, group_name] = group_tab
 
         # Set the open/close state in the groups_model. itemChanged will be
@@ -2469,7 +2478,7 @@ class RunManager(object):
         item = self.get_group_item_by_name(globals_file, new_group_name, self.GROUPS_COL_NAME,
                                            previous_name=previous_group_name)
         try:
-            group_manager.rename_group(globals_file, previous_group_name, new_group_name)
+            self.group_manager[globals_file].rename_group(previous_group_name, new_group_name)
         except Exception as e:
             error_dialog(str(e))
             # Set the item text back to the old name, since the rename failed:
@@ -2502,7 +2511,7 @@ class RunManager(object):
         group_tab = self.currently_open_groups.get((globals_file, group_name))
         if group_tab is not None:
             self.close_group(globals_file, group_name)
-        group_manager.delete_group(globals_file, group_name)
+        self.group_manager[globals_file].delete_group(group_name)
         # Find the entry for this group in self.groups_model and remove it:
         name_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
         name_item.parent().removeRow(name_item.row())
@@ -2792,9 +2801,9 @@ class RunManager(object):
                 continue
 
     def parse_globals(self, active_groups, raise_exceptions=True, expand_globals=True, expansion_order = None, return_dimensions = False):
-        sequence_globals = group_manager.get_globals(active_groups)
+        sequence_globals = self.group_manager.get_globals(active_groups)
         #logger.info('got sequence globals')
-        evaled_globals, global_hierarchy, expansions = group_manager.evaluate_globals(sequence_globals, raise_exceptions)
+        evaled_globals, global_hierarchy, expansions = evaluate_globals(sequence_globals, raise_exceptions)
         #logger.info('evaluated sequence globals')
         if expand_globals:
             if return_dimensions:
@@ -2867,8 +2876,8 @@ class RunManager(object):
                     else:
                         previous_value = 0
 
-                new_guess = group_manager.guess_expansion_type(new_value)
-                previous_guess = group_manager.guess_expansion_type(previous_value)
+                new_guess = guess_expansion_type(new_value)
+                previous_guess = guess_expansion_type(previous_value)
 
                 if new_guess == 'outer':
                     expansion_types[global_name] = {'previous_guess': previous_guess,
@@ -2878,7 +2887,7 @@ class RunManager(object):
                                                     }
                 elif new_guess != previous_guess:
                     filename = active_groups[group_name]
-                    group_manager.set_expansion(filename, group_name, global_name, new_guess)
+                    self.group_manager[filename][group_name].set_expansion(global_name, new_guess)
                     expansions[global_name] = new_guess
                     expansion_types_changed = True
 
@@ -2955,8 +2964,7 @@ class RunManager(object):
         for global_name, guesses in expansion_types.items():
             if guesses['new_guess'] != guesses['previous_guess']:
                 filename = active_groups[guesses['group_name']]
-                group_manager.set_expansion(
-                    filename, str(guesses['group_name']), str(global_name), str(guesses['new_guess']))
+                self.group_manager[filename][str(guesses['group_name'])].set_expansion(str(global_name), str(guesses['new_guess']))
                 expansions[global_name] = guesses['new_guess']
                 expansion_types_changed = True
 
@@ -2969,7 +2977,7 @@ class RunManager(object):
                         iter(evaled_globals[group_name][global_name])
                     except Exception:
                         filename = active_groups[group_name]
-                        group_manager.set_expansion(filename, group_name, global_name, '')
+                        self.group_manager[filename][group_name].set_expansion(global_name, '')
                         expansion_types_changed = True
 
         self.previous_evaled_globals = evaled_globals
@@ -3063,14 +3071,14 @@ class RemoteServer(ZMQServer):
 
     def handle_get_globals(self, raw=False):
         active_groups = inmain(self.app.get_active_groups, interactive=False)
-        sequence_globals = group_manager.get_globals(active_groups)
+        sequence_globals = self.app.group_manager.get_globals(active_groups)
         all_globals = {}
         if raw:
             for group_globals in sequence_globals.values():
                 values_only = {name: val for name, (val, _, _) in group_globals.items()}
                 all_globals.update(values_only)
         else:
-            evaled_globals, global_hierarchy, expansions = group_manager.evaluate_globals(
+            evaled_globals, global_hierarchy, expansions = evaluate_globals(
                 sequence_globals, raise_exceptions=False
             )
             for group_globals in evaled_globals.values():
@@ -3080,7 +3088,7 @@ class RemoteServer(ZMQServer):
     @inmain_decorator()
     def handle_set_globals(self, globals, raw=False):
         active_groups = self.app.get_active_groups(interactive=False)
-        sequence_globals = group_manager.get_globals(active_groups)
+        sequence_globals = self.app.group_manager.get_globals(active_groups)
         try:
             for global_name, new_value in globals.items():
                 # Unless raw=True, convert to str representation for saving to the GUI
@@ -3122,9 +3130,7 @@ class RemoteServer(ZMQServer):
                             ]
                         except KeyError:
                             # Group is not open. Change the global value on disk:
-                            group_manager.set_value(
-                                globals_file, group_name, global_name, new_value
-                            )
+                            self.app.group_manager[group_file][group_name].set_set_value(global_name, new_value)
                         else:
                             # Group is open. Change the global value via the GUI:
                             group_tab.change_global_value(
@@ -3207,9 +3213,9 @@ class RemoteServer(ZMQServer):
             # This will raise an exception if there are multiple active groups of the
             # same name:
             active_groups = inmain(self.app.get_active_groups, interactive=False)
-            sequence_globals = group_manager.get_globals(active_groups)
+            sequence_globals = self.group_manager.get_globals(active_groups)
             # This will raise an exception if any of the globals can't be evaluated:
-            group_manager.evaluate_globals(sequence_globals, raise_exceptions=True)
+            evaluate_globals(sequence_globals, raise_exceptions=True)
         except Exception:
             return True
         return False

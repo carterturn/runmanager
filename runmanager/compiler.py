@@ -34,7 +34,7 @@ process_tree = ProcessTree.instance()
 
 from runmanager.expander import expand_globals
 
-import runmanager.group_manager as group_manager
+from runmanager.group_manager import GroupManager
 import runmanager.evaluator as evaluator
 import runmanager.expander as expander
 
@@ -210,7 +210,12 @@ def make_single_run_file(filename, sequenceglobals, runglobals, sequence_attrs, 
 def make_run_file_from_globals_files(labscript_file, globals_files, output_path, config=None):
     """Creates a run file output_path, using all the globals from globals_files. Uses
     labscript_file to determine the sequence_attrs only"""
-    groups = group_manager.get_all_groups(globals_files)
+    group_manager = GroupManager()
+    groups = {}
+    for global_file in globals_files:
+        file_obj = group_manager.open_file(global_file)
+        for group in file_obj.get_grouplist():
+            groups[group] = global_file
     sequence_globals = group_manager.get_globals(groups)
     evaled_globals, global_hierarchy, expansions = evaluator.evaluate_globals(sequence_globals)
     shots = expander.expand_globals(sequence_globals, evaled_globals)

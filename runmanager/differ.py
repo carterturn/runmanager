@@ -17,7 +17,7 @@ import numpy as np
 
 from runmanager.evaluator import evaluate_globals
 from runmanager.tokenizer import remove_comments_and_tokenify
-from runmanager.group_manager import get_all_groups, get_globals
+from runmanager.group_manager import GroupManager
 
 def flatten_globals(sequence_globals, evaluated=False):
     """Flattens the data structure of the globals. If evaluated=False,
@@ -63,11 +63,12 @@ def dict_diff(dict1, dict2):
     return diff
 
 
-def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_string=True):
+def globals_diff_groups(active_manager, active_groups, other_manager, other_groups,
+                        max_cols=1000, return_string=True):
     """Given two sets of globals groups, perform a diff of the raw
     and evaluated globals."""
-    our_sequence_globals = get_globals(active_groups)
-    other_sequence_globals = get_globals(other_groups)
+    our_sequence_globals = active_manager.get_globals(active_groups)
+    other_sequence_globals = other_manager.get_globals(other_groups)
 
     # evaluate globals
     our_evaluated_sequence_globals, _, _ = evaluate_globals(our_sequence_globals, raise_exceptions=False)
@@ -115,11 +116,16 @@ def globals_diff_groups(active_groups, other_groups, max_cols=1000, return_strin
 
 def globals_diff_shots(file1, file2, max_cols=100):
     # Get file's globals groups
-    active_groups = get_all_groups(file1)
+    active_manager = GroupManager()
+    active_groups = active_manager.open_file(file1).get_grouplist()
+    active_groups = {g: file1 for g in active_groups}
 
     # Get other file's globals groups
-    other_groups = get_all_groups(file2)
+    other_manager = GroupManager()
+    other_groups = other_manager.open_file(file2).get_grouplist()
+    other_groups = {g: file2 for g in other_groups}
 
     print('Globals diff between:\n%s\n%s\n\n' % (file1, file2))
-    return globals_diff_groups(active_groups, other_groups, max_cols=max_cols, return_string=False)
+    return globals_diff_groups(active_manager, active_groups, other_manager, other_groups,
+                               max_cols=max_cols, return_string=False)
 
