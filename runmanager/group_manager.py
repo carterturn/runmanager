@@ -90,191 +90,150 @@ def is_valid_group_name(name: str) -> bool:
             return False
     return True
 
-
-class GroupManager:
-    """Class for managing many groups of labscript globals.
-
-    The GroupManager class primarily manages opening, accessing, and closing group files.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the GroupManager with an empty dictionary of globals files."""
-        self.globals_files = {}
-
-    def get_file(self, filename: str) -> GlobalsFile:
-        """Retrieves globals file object.
+class GlobalsGroup(object):
+    """Represents a group within a globals file."""
+    def __init__(self, name: str, parent_file: Any) -> None:
+        """Initialize the GlobalsGroup.
 
         Args:
-            filename: The filename of the open globals file.
+            name: The name of the group.
+            parent_file: The parent GlobalsFile object.
+        """
+        self.name = name
+        self.parent_file = parent_file
+
+    def get_filename(self) -> str:
+        """Get the filename of the parent file.
+
         Returns:
-            GlobalsFile: The globals file object associated with the filename.
+            str: The filename of the parent file.
+        """
+        return self.parent_file.filename
+
+    def get_globalslist(self) -> List[str]:
+        """Get a list of globals in this group.
+
+        Returns:
+            A list of global names in the group.
+        """
+        return self.parent_file._get_globalslist(self.name)
+
+    def rename(self, new_name: str) -> None:
+        """Rename this group.
+
+        Args:
+            new_name: The new name for the group.
+        """
+        self.parent_file.rename_group(self.name, new_name)
+        self.name = new_name
+
+    def new_global(self, globalname: str) -> None:
+        """Create a new global in this group with name globalname.
+
+        Args:
+            globalname: The name for the new global.
         Raises:
-            KeyError: If the globals file is not open.
+            ValueError: If the global name is not a valid Python identifier.
         """
-        if filename in self.globals_files:
-            return self.globals_files[filename]
-        else:
-            raise KeyError(f'{filename} is not an open globals file')
+        if not is_valid_python_identifier(globalname):
+            raise ValueError('%s is not a valid Python variable name' % globalname)
+        self.parent_file._new_global(self.name, globalname)
 
-    def __getitem__(self, key: str) -> GlobalsFile:
-        """Retrieve a globals file.
+    def rename_global(self, oldglobalname: str, newglobalname: str) -> None:
+        """Rename global from oldglobalname to newglobalname.
 
         Args:
-            key: The filename of the globals file to retrieve.
+            oldglobalname: The current name of the global.
+            newglobalname: The new name for the global.
+        """
+        if oldglobalname == newglobalname:
+            # No rename!
+            return
+        self.new_global(newglobalname)
+        self.set_value(newglobalname, self.get_value(oldglobalname))
+        self.set_units(newglobalname, self.get_units(oldglobalname))
+        self.set_expansion(newglobalname, self.get_expansion(oldglobalname))
+        self.delete_global(oldglobalname)
+
+    def get_globals(self) -> Dict[str, Tuple[str, str, str]]:
+        """Retrieve all globals from the group.
+
         Returns:
-            GlobalsFile: The globals file object.
-        Raises:
-            KeyError: If the file is not open.
+            A dictionary mapping global names to tuples of (value, units, expansion).
         """
-        return self.get_file(key)
+        group_globals: Dict[str, Tuple[str, str, str]] = {}
+        for global_name in self.get_globalslist():
+            group_globals[global_name] = (self.get_value(global_name),
+                                          self.get_units(global_name),
+                                          self.get_expansion(global_name))
+        return group_globals
 
-    def __contains__(self, key: str) -> bool:
-        """Check if a file is open using the 'in' operator.
+    def get_value(self, globalname: str) -> str:
+        """Get value of global named globalname.
 
         Args:
-            key: The filename to check.
+            globalname: The name of the global.
         Returns:
-            True if the file is open, False otherwise.
+            str: The value of the global.
         """
-        return key in self.globals_files.keys()
+        return self.parent_file._get_value(self.name, globalname)
 
-    def open_file(self, filename: str) -> GlobalsFile:
-        """Opens a globals file.
-
-        Uses extension to decide which globals file class to call,
-        and constructs an instance of that class.
-
-        Supported extensions:
-        	h5, for HDF5 file
-        Raises ValueError for unsupported extension.
+    def set_value(self, globalname: str, value: str) -> None:
+        """Set value of global named globalname to value.
 
         Args:
-            filename: The path to the globals file to open.
+            globalname: The name of the global.
+            value: The string value to set.
+        """
+        return self.parent_file._set_value(self.name, globalname, value)
+
+    def get_units(self, globalname: str) -> str:
+        """Get units of global named globalname.
+
+        Args:
+            globalname: The name of the global.
         Returns:
-            GlobalsFile: The opened globals file object.
-        Raises:
-            KeyError: If the file is already open.
-            ValueError: If the file extension is not supported.
+            str: The units of the global.
         """
-        if filename in self.globals_files.keys():
-            return self.globals_files[filename]
-        file_class = _get_globals_file_subclass(filename)
-        self.globals_files[filename] = file_class(filename)
-        return self.globals_files[filename]
+        return self.parent_file._get_units(self.name, globalname)
 
-    def new_file(self, filename: str) -> GlobalsFile:
-        """Creates a new globals file.
-
-        Uses extension to decide which globals file class to call,
-        and constructs an instance of that class with "new" set to true.
-
-        Supported extensions:
-        	h5, for HDF5 file
-        Raises ValueError for unsupported extension.
+    def set_units(self, globalname: str, units: str) -> None:
+        """Set units of global named globalname to units.
 
         Args:
-            filename: The path to the new globals file to create.
+            globalname: The name of the global.
+            units: The string units to set.
+        """
+        return self.parent_file._set_units(self.name, globalname, units)
+
+    def get_expansion(self, globalname: str) -> str:
+        """Get expansion of global named globalname.
+
+        Args:
+            globalname: The name of the global.
         Returns:
-            GlobalsFile: The newly created globals file object.
-        Raises:
-            KeyError: If the file is already open.
-            ValueError: If the file extension is not supported.
+            str: The expansion of the global.
         """
-        if filename in self.globals_files.keys():
-            return self.globals_files[filename]
-        file_class = _get_globals_file_subclass(filename)
-        self.globals_files[filename] = file_class(filename, new=True)
-        return self.globals_files[filename]
+        return self.parent_file._get_expansion(self.name, globalname)
 
-    def copy_group(self, source_file: str, source_groupname: str,
-                   dest_file: Optional[str] = None, delete_source_group: bool = False) -> str:
-        """Copy a group from one file to another.
-
-        This function copies the group source_groupname from source_globals_file
-        to dest_globals_file and renames the new group so that there is no name
-        collision.
-
-        Both source_file and dest_file must be currently open groups.
-
-        If delete_source_group is False the copied files have a suffix '_copy'.
+    def set_expansion(self, globalname: str, expansion: str) -> None:
+        """Set expansion of global named globalname to expansion.
 
         Args:
-            source_file: The filename of the source globals file.
-            source_groupname: The name of the group to copy.
-            dest_file: The filename of the destination globals file.
-                If None, uses the source file.
-            delete_source_group: If True, delete the source group after 
-        Returns:
-            str: The name of the newly created destination group.
-        Raises:
-            KeyError: If either source_file or dest_file is not open.
+            globalname: The name of the global.
+            expansion: The string expansion to set.
         """
-        if dest_file is None:
-            dest_file = source_file
-        if source_file == dest_file and delete_source_group:
-            # If copying to the same file with a delete, do nothing.
-            return source_groupname
+        return self.parent_file._set_expansion(self.name, globalname, expansion)
 
-        # Rename Group until there is no name collisions
-        i = 0 if not delete_source_group else 1
-        dest_groupname = source_groupname
-        while dest_groupname in self.globals_files[dest_file].get_grouplist():
-            dest_groupname = "{}({})".format(dest_groupname, i) if i > 0 else "{}_copy".format(dest_groupname)
-            i += 1
-
-        # Do the copy
-        source_group = self.globals_files[source_file][source_groupname]
-        self.globals_files[dest_file].new_group(dest_groupname)
-        dest_group = self.globals_files[dest_file][dest_groupname]
-        for global_name, (value, units, expansion) in source_group.get_globals().items():
-            dest_group.new_global(global_name)
-            dest_group.set_value(global_name, value)
-            dest_group.set_units(global_name, units)
-            dest_group.set_expansion(global_name, expansion)
-
-        return dest_groupname
-
-    def close_file(self, filename: str) -> None:
-        """Closes globals file.
+    def delete_global(self, globalname: str) -> None:
+        """Delete global named globalname.
 
         Args:
-            filename: The filename of the globals file to close.
-        Raises:
-            KeyError: If the globals file is not open.
+            globalname: The name of the global to delete.
         """
-        if filename in self.globals_files:
-            del self.globals_files[filename]
-        else:
-            raise KeyError(f'{filename} is not an open globals file')
+        self.parent_file._delete_global(self.name, globalname)
 
-    def get_globals(self, active_groups: Dict[str, str]) -> Dict[str, Dict[str, Tuple[str, str, str]]]:
-        """Takes a dictionary of {group name: group filename} and pulls the
-        globals out of the groups in their files.  The globals are strings
-        storing python expressions at this point. All these globals are
-        packed into a new dictionary, keyed by group_name, where the values
-        are dictionaries which look like {global_name: (expression, units, expansion), ...}
-
-        Args:
-            active_groups: A dictionary mapping group names to their group files.
-        Returns:
-            A dictionary with group names as keys and dictionaries of globals
-            as values. Each global entry is a tuple of (expression, units, expansion).
-        """
-        # First, produce list of groups for each global file
-        groups_files = {}
-        for global_group, global_file in active_groups.items():
-            if global_file in groups_files.keys():
-                groups_files[global_file].append(global_group)
-            else:
-                groups_files[global_file] = [global_group]
-        # Next, get globals for each file and combine into large dictionary
-        sequence_globals = {}
-        for group_file, group_list in groups_files.items():
-            sequence_globals.update(self.get_file(group_file).get_globals(group_list))
-        return sequence_globals
-
-
-class GlobalsFile:
+class GlobalsFile(object):
     """(Abstract) class representing a labscript globals file.
 
     GlobalsFile objects contain many labscript globals groups,
@@ -452,6 +411,187 @@ class GlobalsFile:
         """
         return self._get_globals(group_names)
 
+class GroupManager(object)
+    """Class for managing many groups of labscript globals.
+
+    The GroupManager class primarily manages opening, accessing, and closing group files.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the GroupManager with an empty dictionary of globals files."""
+        self.globals_files = {}
+
+    def get_file(self, filename: str) -> GlobalsFile:
+        """Retrieves globals file object.
+
+        Args:
+            filename: The filename of the open globals file.
+        Returns:
+            GlobalsFile: The globals file object associated with the filename.
+        Raises:
+            KeyError: If the globals file is not open.
+        """
+        if filename in self.globals_files:
+            return self.globals_files[filename]
+        else:
+            raise KeyError(f'{filename} is not an open globals file')
+
+    def __getitem__(self, key: str) -> GlobalsFile:
+        """Retrieve a globals file.
+
+        Args:
+            key: The filename of the globals file to retrieve.
+        Returns:
+            GlobalsFile: The globals file object.
+        Raises:
+            KeyError: If the file is not open.
+        """
+        return self.get_file(key)
+
+    def __contains__(self, key: str) -> bool:
+        """Check if a file is open using the 'in' operator.
+
+        Args:
+            key: The filename to check.
+        Returns:
+            True if the file is open, False otherwise.
+        """
+        return key in self.globals_files.keys()
+
+    def open_file(self, filename: str) -> GlobalsFile:
+        """Opens a globals file.
+
+        Uses extension to decide which globals file class to call,
+        and constructs an instance of that class.
+
+        Supported extensions:
+            h5, for HDF5 file
+        Raises ValueError for unsupported extension.
+
+        Args:
+            filename: The path to the globals file to open.
+        Returns:
+            GlobalsFile: The opened globals file object.
+        Raises:
+            KeyError: If the file is already open.
+            ValueError: If the file extension is not supported.
+        """
+        if filename in self.globals_files.keys():
+            return self.globals_files[filename]
+        file_class = _get_globals_file_subclass(filename)
+        self.globals_files[filename] = file_class(filename)
+        return self.globals_files[filename]
+
+    def new_file(self, filename: str) -> GlobalsFile:
+        """Creates a new globals file.
+
+        Uses extension to decide which globals file class to call,
+        and constructs an instance of that class with "new" set to true.
+
+        Supported extensions:
+            h5, for HDF5 file
+        Raises ValueError for unsupported extension.
+
+        Args:
+            filename: The path to the new globals file to create.
+        Returns:
+            GlobalsFile: The newly created globals file object.
+        Raises:
+            KeyError: If the file is already open.
+            ValueError: If the file extension is not supported.
+        """
+        if filename in self.globals_files.keys():
+            return self.globals_files[filename]
+        file_class = _get_globals_file_subclass(filename)
+        self.globals_files[filename] = file_class(filename, new=True)
+        return self.globals_files[filename]
+
+    def copy_group(self, source_file: str, source_groupname: str,
+                   dest_file: Optional[str] = None, delete_source_group: bool = False) -> str:
+        """Copy a group from one file to another.
+
+        This function copies the group source_groupname from source_globals_file
+        to dest_globals_file and renames the new group so that there is no name
+        collision.
+
+        Both source_file and dest_file must be currently open groups.
+
+        If delete_source_group is False the copied files have a suffix '_copy'.
+
+        Args:
+            source_file: The filename of the source globals file.
+            source_groupname: The name of the group to copy.
+            dest_file: The filename of the destination globals file.
+                If None, uses the source file.
+            delete_source_group: If True, delete the source group after 
+        Returns:
+            str: The name of the newly created destination group.
+        Raises:
+            KeyError: If either source_file or dest_file is not open.
+        """
+        if dest_file is None:
+            dest_file = source_file
+        if source_file == dest_file and delete_source_group:
+            # If copying to the same file with a delete, do nothing.
+            return source_groupname
+
+        # Rename Group until there is no name collisions
+        i = 0 if not delete_source_group else 1
+        dest_groupname = source_groupname
+        while dest_groupname in self.globals_files[dest_file].get_grouplist():
+            dest_groupname = "{}({})".format(dest_groupname, i) if i > 0 else "{}_copy".format(dest_groupname)
+            i += 1
+
+        # Do the copy
+        source_group = self.globals_files[source_file][source_groupname]
+        self.globals_files[dest_file].new_group(dest_groupname)
+        dest_group = self.globals_files[dest_file][dest_groupname]
+        for global_name, (value, units, expansion) in source_group.get_globals().items():
+            dest_group.new_global(global_name)
+            dest_group.set_value(global_name, value)
+            dest_group.set_units(global_name, units)
+            dest_group.set_expansion(global_name, expansion)
+
+        return dest_groupname
+
+    def close_file(self, filename: str) -> None:
+        """Closes globals file.
+
+        Args:
+            filename: The filename of the globals file to close.
+        Raises:
+            KeyError: If the globals file is not open.
+        """
+        if filename in self.globals_files:
+            del self.globals_files[filename]
+        else:
+            raise KeyError(f'{filename} is not an open globals file')
+
+    def get_globals(self, active_groups: Dict[str, str]) -> Dict[str, Dict[str, Tuple[str, str, str]]]:
+        """Takes a dictionary of {group name: group filename} and pulls the
+        globals out of the groups in their files.  The globals are strings
+        storing python expressions at this point. All these globals are
+        packed into a new dictionary, keyed by group_name, where the values
+        are dictionaries which look like {global_name: (expression, units, expansion), ...}
+
+        Args:
+            active_groups: A dictionary mapping group names to their group files.
+        Returns:
+            A dictionary with group names as keys and dictionaries of globals
+            as values. Each global entry is a tuple of (expression, units, expansion).
+        """
+        # First, produce list of groups for each global file
+        groups_files = {}
+        for global_group, global_file in active_groups.items():
+            if global_file in groups_files.keys():
+                groups_files[global_file].append(global_group)
+            else:
+                groups_files[global_file] = [global_group]
+        # Next, get globals for each file and combine into large dictionary
+        sequence_globals = {}
+        for group_file, group_list in groups_files.items():
+            sequence_globals.update(self.get_file(group_file).get_globals(group_list))
+        return sequence_globals
 
 class H5GlobalsFile(GlobalsFile):
     """GlobalsFile implementation for h5 files."""
@@ -730,150 +870,6 @@ class H5GlobalsFile(GlobalsFile):
                     expansion = _ensure_str(expansion)
                     globals_dict[group_name][global_name] = value, unit, expansion
         return globals_dict
-
-
-class GlobalsGroup:
-    """Represents a group within a globals file."""
-    def __init__(self, name: str, parent_file: Any) -> None:
-        """Initialize the GlobalsGroup.
-
-        Args:
-            name: The name of the group.
-            parent_file: The parent GlobalsFile object.
-        """
-        self.name = name
-        self.parent_file = parent_file
-
-    def get_filename(self) -> str:
-        """Get the filename of the parent file.
-
-        Returns:
-            str: The filename of the parent file.
-        """
-        return self.parent_file.filename
-
-    def get_globalslist(self) -> List[str]:
-        """Get a list of globals in this group.
-
-        Returns:
-            A list of global names in the group.
-        """
-        return self.parent_file._get_globalslist(self.name)
-
-    def rename(self, new_name: str) -> None:
-        """Rename this group.
-
-        Args:
-            new_name: The new name for the group.
-        """
-        self.parent_file.rename_group(self.name, new_name)
-        self.name = new_name
-
-    def new_global(self, globalname: str) -> None:
-        """Create a new global in this group with name globalname.
-
-        Args:
-            globalname: The name for the new global.
-        Raises:
-            ValueError: If the global name is not a valid Python identifier.
-        """
-        if not is_valid_python_identifier(globalname):
-            raise ValueError('%s is not a valid Python variable name' % globalname)
-        self.parent_file._new_global(self.name, globalname)
-
-    def rename_global(self, oldglobalname: str, newglobalname: str) -> None:
-        """Rename global from oldglobalname to newglobalname.
-
-        Args:
-            oldglobalname: The current name of the global.
-            newglobalname: The new name for the global.
-        """
-        if oldglobalname == newglobalname:
-            # No rename!
-            return
-        self.new_global(newglobalname)
-        self.set_value(newglobalname, self.get_value(oldglobalname))
-        self.set_units(newglobalname, self.get_units(oldglobalname))
-        self.set_expansion(newglobalname, self.get_expansion(oldglobalname))
-        self.delete_global(oldglobalname)
-
-    def get_globals(self) -> Dict[str, Tuple[str, str, str]]:
-        """Retrieve all globals from the group.
-
-        Returns:
-            A dictionary mapping global names to tuples of (value, units, expansion).
-        """
-        group_globals: Dict[str, Tuple[str, str, str]] = {}
-        for global_name in self.get_globalslist():
-            group_globals[global_name] = (self.get_value(global_name),
-                                          self.get_units(global_name),
-                                          self.get_expansion(global_name))
-        return group_globals
-
-    def get_value(self, globalname: str) -> str:
-        """Get value of global named globalname.
-
-        Args:
-            globalname: The name of the global.
-        Returns:
-            str: The value of the global.
-        """
-        return self.parent_file._get_value(self.name, globalname)
-
-    def set_value(self, globalname: str, value: str) -> None:
-        """Set value of global named globalname to value.
-
-        Args:
-            globalname: The name of the global.
-            value: The string value to set.
-        """
-        return self.parent_file._set_value(self.name, globalname, value)
-
-    def get_units(self, globalname: str) -> str:
-        """Get units of global named globalname.
-
-        Args:
-            globalname: The name of the global.
-        Returns:
-            str: The units of the global.
-        """
-        return self.parent_file._get_units(self.name, globalname)
-
-    def set_units(self, globalname: str, units: str) -> None:
-        """Set units of global named globalname to units.
-
-        Args:
-            globalname: The name of the global.
-            units: The string units to set.
-        """
-        return self.parent_file._set_units(self.name, globalname, units)
-
-    def get_expansion(self, globalname: str) -> str:
-        """Get expansion of global named globalname.
-
-        Args:
-            globalname: The name of the global.
-        Returns:
-            str: The expansion of the global.
-        """
-        return self.parent_file._get_expansion(self.name, globalname)
-
-    def set_expansion(self, globalname: str, expansion: str) -> None:
-        """Set expansion of global named globalname to expansion.
-
-        Args:
-            globalname: The name of the global.
-            expansion: The string expansion to set.
-        """
-        return self.parent_file._set_expansion(self.name, globalname, expansion)
-
-    def delete_global(self, globalname: str) -> None:
-        """Delete global named globalname.
-
-        Args:
-            globalname: The name of the global to delete.
-        """
-        self.parent_file._delete_global(self.name, globalname)
 
 
 def guess_expansion_type(value: Any) -> str:
