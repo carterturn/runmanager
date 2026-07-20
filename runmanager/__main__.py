@@ -173,6 +173,7 @@ class GroupTab(object):
 
         # Add the ui to the parent tabWidget:
         self.tabWidget.addTab(self.ui, self.group.name, closable=True)
+        self.update_group_name(self.group.name)
 
         self.globals_model = AlternatingColorModel(view=self.ui.tableView_globals)
         self.globals_model.setHorizontalHeaderLabels(['Delete', 'Name', 'Value', 'Units', 'Expansion'])
