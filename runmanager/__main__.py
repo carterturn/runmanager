@@ -155,6 +155,7 @@ class GroupTab(object):
     GLOBALS_ROLE_SORT_DATA = QtCore.Qt.UserRole + 2
     GLOBALS_ROLE_PREVIOUS_TEXT = QtCore.Qt.UserRole + 3
     GLOBALS_ROLE_IS_BOOL = QtCore.Qt.UserRole + 4
+    GLOBALS_ROLE_IS_ENUM = QtCore.Qt.UserRole + 5
 
     GLOBALS_DUMMY_ROW_TEXT = '<Click to add global>'
 
@@ -262,7 +263,7 @@ class GroupTab(object):
             row = self.make_global_row(name, value, units, expansion)
             self.globals_model.appendRow(row)
             value_item = row[self.GLOBALS_COL_VALUE]
-            self.check_for_boolean_values(value_item)
+            self.check_for_special_values(value_item)
             expansion_item = row[self.GLOBALS_COL_EXPANSION]
             self.on_globals_model_expansion_changed(expansion_item)
 
@@ -326,6 +327,7 @@ class GroupTab(object):
         value_item.setData(str(value), self.GLOBALS_ROLE_PREVIOUS_TEXT)
         value_item.setToolTip('Evaluating...')
         value_item.setFont(QtGui.QFont(GLOBAL_MONOSPACE_FONT))
+        value_item.setData(False, self.GLOBALS_ROLE_IS_ENUM)
 
         units_item = QtGui.QStandardItem(units)
         units_item.setData(units, self.GLOBALS_ROLE_SORT_DATA)
@@ -364,6 +366,9 @@ class GroupTab(object):
                 value_item.setText('True')
             else:
                 raise AssertionError('expected boolean value')
+        elif item.data(self.GLOBALS_ROLE_IS_ENUM):
+            # It's a enum combobox. Ignore it.
+            pass
         elif item.column() == self.GLOBALS_COL_DELETE:
             # They clicked a delete button.
             self.delete_global(global_name)
@@ -423,8 +428,8 @@ class GroupTab(object):
         name_item = self.globals_model.itemFromIndex(name_index)
         global_name = name_item.text()
         # If it's a boolean value, ensure the check state matches the bool state:
+        value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
         if item.data(self.GLOBALS_ROLE_IS_BOOL):
-            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
             if value_item.text() == 'True':
                 item.setCheckState(QtCore.Qt.Checked)
             elif value_item.text() == 'False':
@@ -435,6 +440,11 @@ class GroupTab(object):
         # the item:
         if new_units != previous_units:
             self.change_global_units(global_name, previous_units, new_units)
+            # If it's an enum, change the drop down
+            if value_item.data(self.GLOBALS_ROLE_IS_ENUM):
+                value_index = value_item.index()
+                combo_box = self.ui.tableView_globals.indexWidget(value_index)
+                self.set_enum_item_options(new_units, combo_box.currentText(), combo_box)
 
     def on_globals_model_expansion_changed(self, item):
         index = item.index()
@@ -626,7 +636,7 @@ class GroupTab(object):
             if not interactive:
                 raise
         else:
-            self.check_for_boolean_values(item)
+            self.check_for_special_values(item)
             self.do_model_sort()
             item.setToolTip('Evaluating...')
             self.globals_changed()
@@ -656,6 +666,8 @@ class GroupTab(object):
         else:
             item.setData(new_units, self.GLOBALS_ROLE_PREVIOUS_TEXT)
             item.setData(new_units, self.GLOBALS_ROLE_SORT_DATA)
+            value_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
+            self.check_for_special_values(value_item)
             self.do_model_sort()
             # If this changed the sort order, ensure the item is still visible:
             scroll_view_to_row_if_current(self.ui.tableView_globals, item)
@@ -678,10 +690,45 @@ class GroupTab(object):
             # If this changed the sort order, ensure the item is still visible:
             scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
-    def check_for_boolean_values(self, item):
-        """Checks if the value is 'True' or 'False'. If either, makes the
+    def set_enum_item_options(self, unit_str, current_value, combo_box):
+        """Function to update an enum items combo box from a string from a unit item
+        """
+        units_list = unit_str[4:]
+        try:
+            value_list = eval(units_list)
+        except Exception:
+            # Try to make a combo box, but fail quietly to avoid annoying users
+            return
+        value_repr_list = [repr(v) for v in value_list]
+        combo_box.clear()
+        combo_box.addItems(value_repr_list)
+        try:
+            combo_box.setCurrentIndex(value_repr_list.index(current_value))
+        except Exception:
+            combo_box.setCurrentIndex(0)
+        return
+
+    def update_enum_item(self, item, new_value):
+        """Function to convert changes to a combobox enum item
+        into changes to the underlying QStandardItem.
+        """
+        index = item.index()
+        item.setText(new_value)
+        previous_value = item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT)
+        name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
+        name_item = self.globals_model.itemFromIndex(name_index)
+        global_name = name_item.text()
+        self.change_global_value(global_name, previous_value, new_value)
+
+    def check_for_special_values(self, item):
+        """Handles boolean and "enum" datatypes.
+
+        Checks if the value is 'True' or 'False'. If either, makes the
         units cell checkable, uneditable, and coloured to indicate the state.
-        The units cell can then be clicked to toggle the value."""
+        The units cell can then be clicked to toggle the value.
+        Checks if the units starts with 'enum'. If so, makes the value cell
+        an uneditable combobox with options from the list stored in units.
+        """
         index = item.index()
         value = item.text()
         name_index = index.sibling(index.row(), self.GLOBALS_COL_NAME)
@@ -691,7 +738,28 @@ class GroupTab(object):
         global_name = name_item.text()
         self.logger.debug('%s:%s - check for boolean values: %s' %
                      (self.group.get_filename(), self.group.name, global_name))
-        if value == 'True':
+        if units_item.data(self.GLOBALS_ROLE_PREVIOUS_TEXT).startswith('enum'):
+            if not item.data(self.GLOBALS_ROLE_IS_ENUM):
+                # Setup newly defined enum
+                units_item.setToolTip('Click to edit')
+                units_item.setEditable(True)
+                # Set explicit size hint to prevent enums from becoming too wide
+                units_item.setSizeHint(QtCore.QSize(100, -1))
+                combo_box = QtWidgets.QComboBox()
+                self.set_enum_item_options(units_item.text(), value, combo_box)
+                value_update_lambda = lambda v, i=item: self.update_enum_item(i, v)
+                combo_box.currentTextChanged.connect(value_update_lambda)
+                self.ui.tableView_globals.setIndexWidget(index, combo_box)
+                self.update_enum_item(item, combo_box.currentText())
+                item.setData(True, self.GLOBALS_ROLE_IS_ENUM)
+                item.setEditable(False)
+            else:
+                # Update enum value
+                combo_box = self.ui.tableView_globals.indexWidget(index)
+                new_index = combo_box.findText(value)
+                if new_index > -1:
+                    combo_box.setCurrentIndex(new_index)
+        elif value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
             units_item.setData('!1', self.GLOBALS_ROLE_SORT_DATA)
@@ -719,13 +787,18 @@ class GroupTab(object):
                 units_item.setText('')
                 self.ui.tableView_globals.setCurrentIndex(units_item.index())
                 self.ui.tableView_globals.edit(units_item.index())
+            # Clear enum
+            item.setData(False, self.GLOBALS_ROLE_IS_ENUM)
+            item.setEditable(True)
+            self.ui.tableView_globals.setIndexWidget(index, None)
+            units_item.setSizeHint(QtCore.QSize(-1, -1))
 
-    def redraw_boolean_values(self):
-        """Called during theme changes to ensure boolean values get repainted with new colors"""
+    def redraw_special_values(self):
+        """Called during theme changes to ensure special values get repainted with new colors"""
 
         for r in range(self.globals_model.rowCount()-1): # don't parse add-global row
             item = self.globals_model.item(r, self.GLOBALS_COL_VALUE)
-            self.check_for_boolean_values(item)
+            self.check_for_special_values(item)
 
     def globals_changed(self):
         """Called whenever something about a global has changed. call
@@ -854,7 +927,7 @@ class RunmanagerMainWindow(QtWidgets.QMainWindow):
 
             for tab in app.currently_open_groups.values():
                 tab.globals_model.bg_brushes = {}  # reset pre-calculated brushes
-                tab.redraw_boolean_values()
+                tab.redraw_special_values()
 
             # refresh globals model colors
             app.globals_changed()
