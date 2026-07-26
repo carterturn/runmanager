@@ -894,12 +894,49 @@ class YamlGlobalsFile(GlobalsFile):
             filename: The path to the YAML file.
             new: If True, create a new file. If False, open an existing file.
         """
+        self.filename = filename
+        self._data = {}
+        self._last_read_time = None
+        self._lock = threading.Lock()
+
         if new:
             # Create new YAML file with empty globals structure
-            with open(filename, 'w') as f:
+            with open(self.filename, 'w') as f:
                 yaml.dump({'globals': {}}, f)
-        self.file_lock = threading.Lock()
-        super().__init__(filename)
+            self._last_read_time = os.stat(self.filename).st_mtime_ns
+
+    def _get_data(self) -> Dict[str, Any]:
+        """Get data from YAML file (or cached version).
+
+        Reads the YAML file only if it has changed since the last read.
+
+        Returns:
+            The cached data dictionary.
+        """
+        reload_data = False
+        if self._last_read_time is None:
+            reload_data = True
+        else:
+            if os.stat(self.filename).st_mtime_ns > self._last_read_time:
+                reload_data = True
+        if reload_data:
+            with self._lock:
+                with open(self.filename, 'r') as f:
+                    self._data = yaml.safe_load(f)
+                    self._last_read_time = os.stat(self.filename).st_mtime_ns
+        return self._data
+
+    def _set_data(self, data) -> None:
+        """Set cached data and save to the YAML file.
+
+        Args:
+            data: The data dictionary to save.
+        """
+        self._data = data
+        with self._lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(self._data, f)
+            self._last_read_time = os.stat(self.filename).st_mtime_ns
 
     def _get_grouplist(self) -> List[str]:
         """Retrieve a list of group names from the YAML file.
@@ -909,9 +946,7 @@ class YamlGlobalsFile(GlobalsFile):
         Raises:
             KeyError: if this YAML file does not contain globals.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         return list(data['globals'].keys())
 
     def _new_group(self, group_name: str) -> None:
@@ -920,15 +955,11 @@ class YamlGlobalsFile(GlobalsFile):
         Args:
             group_name: The name for the new group.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         if group_name in data['globals']:
             raise Exception(f'Can\'t create group: target name already exists.')
         data['globals'][group_name] = {}
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _rename_group(self, oldgroupname: str, newgroupname: str) -> None:
         """Rename a group in the YAML file.
@@ -937,15 +968,11 @@ class YamlGlobalsFile(GlobalsFile):
             oldgroupname: The current name of the group.
             newgroupname: The new name for the group.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         if newgroupname in data['globals']:
             raise Exception(f'Can\'t rename group: target name already exists.')
         data['globals'][newgroupname] = data['globals'].pop(oldgroupname)
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _delete_group(self, groupname: str) -> None:
         """Delete a group from the YAML file.
@@ -953,14 +980,10 @@ class YamlGlobalsFile(GlobalsFile):
         Args:
             groupname: The name of the group to delete.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         if groupname in data['globals']:
             del data['globals'][groupname]
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _get_group(self, groupname: str) -> 'GlobalsGroup':
         """Retrieve a group object by name.
@@ -980,9 +1003,7 @@ class YamlGlobalsFile(GlobalsFile):
         Returns:
             A list of global names in the group.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         group_data = data['globals'].get(groupname, {})
         return list(group_data.keys())
 
@@ -995,17 +1016,13 @@ class YamlGlobalsFile(GlobalsFile):
         Raises:
             Exception: If a global with the given name already exists.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         if groupname not in data['globals']:
             data['globals'][groupname] = {}
         if globalname in data['globals'][groupname]:
             raise Exception(f'Can\'t create global: target name already exists.')
         data['globals'][groupname][globalname] = {'value': '', 'units': '', 'expansion': ''}
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _delete_global(self, groupname: str, globalname: str) -> None:
         """Delete a global from a group.
@@ -1014,14 +1031,10 @@ class YamlGlobalsFile(GlobalsFile):
             groupname: The name of the group containing the global.
             globalname: The name of the global to delete.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         group_data = data['globals'][groupname]
         del data['globals'][groupname][globalname]
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _get_value(self, groupname: str, globalname: str) -> str:
         """Get the value of a global.
@@ -1032,9 +1045,7 @@ class YamlGlobalsFile(GlobalsFile):
         Returns:
             str: The string value of the global.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         return data['globals'][groupname][globalname]['value']
 
     def _set_value(self, groupname: str, globalname: str, value: str) -> None:
@@ -1045,13 +1056,9 @@ class YamlGlobalsFile(GlobalsFile):
             globalname: The name of the global.
             value: The string value to set.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         data['globals'][groupname][globalname]['value'] = value
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _get_units(self, groupname: str, globalname: str) -> str:
         """Get the units of a global.
@@ -1062,9 +1069,7 @@ class YamlGlobalsFile(GlobalsFile):
         Returns:
             str: The string units of the global.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         return data['globals'][groupname][globalname]['units']
 
     def _set_units(self, groupname: str, globalname: str, units: str) -> None:
@@ -1075,13 +1080,9 @@ class YamlGlobalsFile(GlobalsFile):
             globalname: The name of the global.
             units: The string units to set.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         data['globals'][groupname][globalname]['units'] = units
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _get_expansion(self, groupname: str, globalname: str) -> str:
         """Get the expansion of a global.
@@ -1092,9 +1093,7 @@ class YamlGlobalsFile(GlobalsFile):
         Returns:
             str: The string expansion of the global.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         return data['globals'][groupname][globalname]['expansion']
 
     def _set_expansion(self, groupname: str, globalname: str, expansion: str) -> None:
@@ -1105,13 +1104,9 @@ class YamlGlobalsFile(GlobalsFile):
             globalname: The name of the global.
             expansion: The string expansion to set.
         """
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         data['globals'][groupname][globalname]['expansion'] = expansion
-        with self.file_lock:
-            with open(self.filename, 'w') as f:
-                yaml.dump(data, f)
+        self._set_data(data)
 
     def _get_globals(self, group_names: List[str]) -> Dict[str, Dict[str, Tuple[str, str, str]]]:
         """Get all globals from specified groups.
@@ -1123,9 +1118,7 @@ class YamlGlobalsFile(GlobalsFile):
             as values. Each global entry is a tuple of (expression, units, expansion).
         """
         globals_dict = {}
-        with self.file_lock:
-            with open(self.filename, 'r') as f:
-                data = yaml.safe_load(f)
+        data = self._get_data()
         for group_name in group_names:
             globals_dict[group_name] = {}
             group_data = data['globals'][group_name]
