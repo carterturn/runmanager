@@ -241,7 +241,7 @@ class GroupTab(object):
         """Provided as a separate method so the main app can call it if the
         group gets renamed"""
         self.group.rename(group_name)
-        self.ui.label_globals_file.setText(self.globals_group.get_filename())
+        self.ui.label_globals_file.setText(self.group.get_filename())
         self.ui.label_group_name.setText(self.group.name)
         index = self.tabWidget.indexOf(self.ui)
         self.tabWidget.setTabText(index, self.group.name)
