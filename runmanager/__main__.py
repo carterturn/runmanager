@@ -1684,7 +1684,7 @@ class RunManager(object):
         globals_file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
                                                          'Select globals file',
                                                          self.last_opened_globals_folder,
-                                                         "HDF5 files (*.h5)")
+                                                         "HDF5 files (*.h5);;YAML files (*.yml *.yaml)")
         if type(globals_file) is tuple:
             globals_file, _ = globals_file
 
@@ -1705,7 +1705,7 @@ class RunManager(object):
         globals_file = QtWidgets.QFileDialog.getSaveFileName(self.ui,
                                                          'Create new globals file',
                                                          self.last_opened_globals_folder,
-                                                         "HDF5 files (*.h5)")
+                                                         "HDF5 files (*.h5);;YAML files (*.yml *.yaml)")
         if type(globals_file) is tuple:
             globals_file, _ = globals_file
 
@@ -1725,7 +1725,7 @@ class RunManager(object):
         globals_file = QtWidgets.QFileDialog.getOpenFileName(self.ui,
                                                          'Select globals file to compare',
                                                          self.last_opened_globals_folder,
-                                                         "HDF5 files (*.h5)")
+                                                         "HDF5 files (*.h5);;YAML files (*.yml *.yaml)")
         if type(globals_file) is tuple:
             globals_file, _ = globals_file
 

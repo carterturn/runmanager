@@ -19,9 +19,11 @@ Groups can be activated, opened, and accessed via this class.
 import io
 import h5py
 import numpy as np
+import threading
 import tokenize
 import os
 import warnings
+import yaml
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import labscript_utils.shot_utils
@@ -161,12 +163,8 @@ class GlobalsGroup(object):
         Returns:
             A dictionary mapping global names to tuples of (value, units, expansion).
         """
-        group_globals: Dict[str, Tuple[str, str, str]] = {}
-        for global_name in self.get_globalslist():
-            group_globals[global_name] = (self.get_value(global_name),
-                                          self.get_units(global_name),
-                                          self.get_expansion(global_name))
-        return group_globals
+        group_globals = self.parent_file._get_globals([self.name])
+        return group_globals[self.name]
 
     def get_value(self, globalname: str) -> str:
         """Get value of global named globalname.
@@ -411,7 +409,7 @@ class GlobalsFile(object):
         """
         return self._get_globals(group_names)
 
-class GroupManager(object)
+class GroupManager(object):
     """Class for managing many groups of labscript globals.
 
     The GroupManager class primarily manages opening, accessing, and closing group files.
@@ -466,6 +464,7 @@ class GroupManager(object)
 
         Supported extensions:
             h5, for HDF5 file
+            yaml, yml for YAML file
         Raises ValueError for unsupported extension.
 
         Args:
@@ -490,6 +489,7 @@ class GroupManager(object)
 
         Supported extensions:
             h5, for HDF5 file
+            yaml, yml for YAML file
         Raises ValueError for unsupported extension.
 
         Args:
@@ -871,6 +871,269 @@ class H5GlobalsFile(GlobalsFile):
                     globals_dict[group_name][global_name] = value, unit, expansion
         return globals_dict
 
+class YamlGlobalsFile(GlobalsFile):
+    """GlobalsFile implementation for yaml files.
+
+    This class provides a YAML-based implementation of the GlobalsFile interface,
+    allowing globals to be stored and loaded from YAML files.
+
+    YAML structure:
+    ```yaml
+    globals:
+      group_name:
+        global_name_1:
+          value: "expression"
+          units: "units"
+          expansion: "expansion"
+    ```
+    """
+    def __init__(self, filename: str, new: bool = False) -> None:
+        """Initialize the YamlGlobalsFile.
+
+        Args:
+            filename: The path to the YAML file.
+            new: If True, create a new file. If False, open an existing file.
+        """
+        if new:
+            # Create new YAML file with empty globals structure
+            with open(filename, 'w') as f:
+                yaml.dump({'globals': {}}, f)
+        self.file_lock = threading.Lock()
+        super().__init__(filename)
+
+    def _get_grouplist(self) -> List[str]:
+        """Retrieve a list of group names from the YAML file.
+
+        Returns:
+            A list of group names in the file.
+        Raises:
+            KeyError: if this YAML file does not contain globals.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        return list(data['globals'].keys())
+
+    def _new_group(self, group_name: str) -> None:
+        """Create a new group in the YAML file.
+
+        Args:
+            group_name: The name for the new group.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        if group_name in data['globals']:
+            raise Exception(f'Can\'t create group: target name already exists.')
+        data['globals'][group_name] = {}
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _rename_group(self, oldgroupname: str, newgroupname: str) -> None:
+        """Rename a group in the YAML file.
+
+        Args:
+            oldgroupname: The current name of the group.
+            newgroupname: The new name for the group.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        if newgroupname in data['globals']:
+            raise Exception(f'Can\'t rename group: target name already exists.')
+        data['globals'][newgroupname] = data['globals'].pop(oldgroupname)
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _delete_group(self, groupname: str) -> None:
+        """Delete a group from the YAML file.
+
+        Args:
+            groupname: The name of the group to delete.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        if groupname in data['globals']:
+            del data['globals'][groupname]
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _get_group(self, groupname: str) -> 'GlobalsGroup':
+        """Retrieve a group object by name.
+
+        Args:
+            groupname: The name of the group to retrieve.
+        Returns:
+            A GlobalsGroup object representing the group.
+        """
+        return GlobalsGroup(groupname, self)
+
+    def _get_globalslist(self, groupname: str) -> List[str]:
+        """Get a list of global names within a group.
+
+        Args:
+            groupname: The name of the group.
+        Returns:
+            A list of global names in the group.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        group_data = data['globals'].get(groupname, {})
+        return list(group_data.keys())
+
+    def _new_global(self, groupname: str, globalname: str) -> None:
+        """Create a new global within a group.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the new global.
+        Raises:
+            Exception: If a global with the given name already exists.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        if groupname not in data['globals']:
+            data['globals'][groupname] = {}
+        if globalname in data['globals'][groupname]:
+            raise Exception(f'Can\'t create global: target name already exists.')
+        data['globals'][groupname][globalname] = {'value': '', 'units': '', 'expansion': ''}
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _delete_global(self, groupname: str, globalname: str) -> None:
+        """Delete a global from a group.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global to delete.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        group_data = data['globals'][groupname]
+        del data['globals'][groupname][globalname]
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _get_value(self, groupname: str, globalname: str) -> str:
+        """Get the value of a global.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global.
+        Returns:
+            str: The string value of the global.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        return data['globals'][groupname][globalname]['value']
+
+    def _set_value(self, groupname: str, globalname: str, value: str) -> None:
+        """Set the value of a global.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global.
+            value: The string value to set.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        data['globals'][groupname][globalname]['value'] = value
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _get_units(self, groupname: str, globalname: str) -> str:
+        """Get the units of a global.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global.
+        Returns:
+            str: The string units of the global.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        return data['globals'][groupname][globalname]['units']
+
+    def _set_units(self, groupname: str, globalname: str, units: str) -> None:
+        """Set the units of a global.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global.
+            units: The string units to set.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        data['globals'][groupname][globalname]['units'] = units
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _get_expansion(self, groupname: str, globalname: str) -> str:
+        """Get the expansion of a global.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global.
+        Returns:
+            str: The string expansion of the global.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        return data['globals'][groupname][globalname]['expansion']
+
+    def _set_expansion(self, groupname: str, globalname: str, expansion: str) -> None:
+        """Set the expansion of a global.
+
+        Args:
+            groupname: The name of the group containing the global.
+            globalname: The name of the global.
+            expansion: The string expansion to set.
+        """
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        data['globals'][groupname][globalname]['expansion'] = expansion
+        with self.file_lock:
+            with open(self.filename, 'w') as f:
+                yaml.dump(data, f)
+
+    def _get_globals(self, group_names: List[str]) -> Dict[str, Dict[str, Tuple[str, str, str]]]:
+        """Get all globals from specified groups.
+
+        Args:
+            group_names: A list of group names to retrieve globals from.
+        Returns:
+            A dictionary with group names as keys and dictionaries of globals
+            as values. Each global entry is a tuple of (expression, units, expansion).
+        """
+        globals_dict = {}
+        with self.file_lock:
+            with open(self.filename, 'r') as f:
+                data = yaml.safe_load(f)
+        for group_name in group_names:
+            globals_dict[group_name] = {}
+            group_data = data['globals'][group_name]
+            for global_name, global_data in group_data.items():
+                globals_dict[group_name][global_name] = (str(global_data['value']),
+                                                         str(global_data['units']),
+                                                         str(global_data['expansion']))
+        return globals_dict
 
 def guess_expansion_type(value: Any) -> str:
     """Guess the expansion type based on the value's type.
@@ -885,23 +1148,23 @@ def guess_expansion_type(value: Any) -> str:
     else:
         return u''
 
-
 def _get_globals_file_subclass(filename: str) -> type:
     """Create the appropriate sub-class of GlobalsFile based on the filename.
 
     Args:
         filename: The path to the globals file.
     Returns:
-        type: The appropriate subclass of GlobalsFile (currently only H5GlobalsFile).
+        type: The appropriate subclass of GlobalsFile.
     Raises:
         ValueError: If the file extension is not supported.
     """
     _, extension = os.path.splitext(filename)
     if extension == '.h5':
         return H5GlobalsFile
+    elif extension in ['.yaml', '.yml']:
+        return YamlGlobalsFile
     else:
         raise ValueError(f'Extension "{extension}" not supported')
-
 
 def get_shot_globals(filepath: str) -> Dict[str, Any]:
     """Returns the evaluated globals for a shot, for use by labscript or lyse.
