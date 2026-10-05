@@ -123,9 +123,8 @@ def question_dialog(message):
 @contextlib.contextmanager
 def nested(*contextmanagers):
     if contextmanagers:
-        with contextmanagers[0]:
-            with nested(*contextmanagers[1:]):
-                yield
+        with contextmanagers[0], nested(*contextmanagers[1:]):
+            yield
     else:
         yield
 
