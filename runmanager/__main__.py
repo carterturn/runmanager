@@ -1458,7 +1458,7 @@ class RunManager:
         # Get the selection model from the treeview
         selection_model = self.ui.treeView_axes.selectionModel()    
         # Create a list of select row indices
-        selected_row_list = [index.row() for index in reversed(sorted(selection_model.selectedRows()))]
+        selected_row_list = [index.row() for index in sorted(selection_model.selectedRows(), reverse=True)]
         # For each row selected
         for i,row in enumerate(selected_row_list):
             # only move the row if it is not the last element, and the row above it is not selected
@@ -1479,7 +1479,7 @@ class RunManager:
     def on_axis_to_bottom_clicked(self, checked):
         selection_model = self.ui.treeView_axes.selectionModel()    
         # Create a list of select row indices
-        selected_row_list = [index.row() for index in reversed(sorted(selection_model.selectedRows()))]
+        selected_row_list = [index.row() for index in sorted(selection_model.selectedRows(), reverse=True)]
         # For each row selected
         for i,row in enumerate(selected_row_list):
             # only move the row while it is not the last element, and the row above it is not selected
