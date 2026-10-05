@@ -244,7 +244,7 @@ class GroupTab:
         self.ui.label_group_name.setText(group_name)
         index = self.tabWidget.indexOf(self.ui)
         self.tabWidget.setTabText(index, group_name)
-        self.tabWidget.setTabToolTip(index, '%s\n(%s)' % (group_name, globals_file))
+        self.tabWidget.setTabToolTip(index, f'{group_name}\n({globals_file})')
 
     def set_tab_icon(self, icon_string):
         index = self.tabWidget.indexOf(self.ui)
@@ -302,7 +302,7 @@ class GroupTab:
         self.ui.tableView_globals.sortByColumn(self.GLOBALS_COL_NAME, QtCore.Qt.AscendingOrder)
 
     def make_global_row(self, name, value='', units='', expansion=''):
-        self.logger.debug('%s:%s - make global row: %s ' % (self.globals_file, self.group_name, name))
+        self.logger.debug(f'{self.globals_file}:{self.group_name} - make global row: {name} ')
         # We just set some data here, other stuff is set in
         # self.update_parse_indication after runmanager has a chance to parse
         # everything and get back to us about what that data should be.
@@ -453,7 +453,7 @@ class GroupTab:
                 item.setIcon(QtGui.QIcon(':qtutils/custom/zip'))
                 item.setToolTip('This global will be interpreted as a list of values, and will ' +
                                 'be iterated over in lock-step with other globals in the ' +
-                                '\'%s\' zip group.' % new_expansion)
+                                f'\'{new_expansion}\' zip group.')
             else:
                 item.setData(None, QtCore.Qt.DecorationRole)
                 item.setToolTip('This global will be interpreted as a single value and passed to compilation as-is.')
@@ -478,7 +478,7 @@ class GroupTab:
         # message.
         confirm_multiple = (len(name_items) > 1)
         if confirm_multiple:
-            if not question_dialog("Delete %d globals?" % len(name_items)):
+            if not question_dialog(f"Delete {len(name_items)} globals?"):
                 return
         for item in name_items:
             global_name = item.text()
@@ -590,8 +590,7 @@ class GroupTab:
                 scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def change_global_value(self, global_name, previous_value, new_value, interactive=True):
-        self.logger.info('%s:%s - change global value: %s = %s -> %s' %
-                    (self.globals_file, self.group_name, global_name, previous_value, new_value))
+        self.logger.info(f'{self.globals_file}:{self.group_name} - change global value: {global_name} = {previous_value} -> {new_value}')
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_VALUE)
         if not interactive:
             # Value was not set interactively by the user, it is up to us to set it:
@@ -643,8 +642,7 @@ class GroupTab:
                 scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def change_global_units(self, global_name, previous_units, new_units):
-        self.logger.info('%s:%s - change units: %s = %s -> %s' %
-                    (self.globals_file, self.group_name, global_name, previous_units, new_units))
+        self.logger.info(f'{self.globals_file}:{self.group_name} - change units: {global_name} = {previous_units} -> {new_units}')
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_UNITS)
         try:
             group_manager.set_units(self.globals_file, self.group_name, global_name, new_units)
@@ -660,8 +658,7 @@ class GroupTab:
             scroll_view_to_row_if_current(self.ui.tableView_globals, item)
 
     def change_global_expansion(self, global_name, previous_expansion, new_expansion):
-        self.logger.info('%s:%s - change expansion: %s = %s -> %s' %
-                    (self.globals_file, self.group_name, global_name, previous_expansion, new_expansion))
+        self.logger.info(f'{self.globals_file}:{self.group_name} - change expansion: {global_name} = {previous_expansion} -> {new_expansion}')
         item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_EXPANSION)
         try:
             group_manager.set_expansion(self.globals_file, self.group_name, global_name, new_expansion)
@@ -688,8 +685,7 @@ class GroupTab:
         name_item = self.globals_model.itemFromIndex(name_index)
         units_item = self.globals_model.itemFromIndex(units_index)
         global_name = name_item.text()
-        self.logger.debug('%s:%s - check for boolean values: %s' %
-                     (self.globals_file, self.group_name, global_name))
+        self.logger.debug(f'{self.globals_file}:{self.group_name} - check for boolean values: {global_name}')
         if value == 'True':
             units_item.setData(True, self.GLOBALS_ROLE_IS_BOOL)
             units_item.setText('Bool')
@@ -736,10 +732,9 @@ class GroupTab:
         app.globals_changed()
 
     def delete_global(self, global_name, confirm=True):
-        self.logger.info('%s:%s - delete global: %s' %
-                    (self.globals_file, self.group_name, global_name))
+        self.logger.info(f'{self.globals_file}:{self.group_name} - delete global: {global_name}')
         if confirm:
-            if not question_dialog("Delete the global '%s'?" % global_name):
+            if not question_dialog(f"Delete the global '{global_name}'?"):
                 return
         group_manager.delete_global(self.globals_file, self.group_name, global_name)
         # Find the entry for this global in self.globals_model and remove it:
@@ -786,7 +781,7 @@ class GroupTab:
                 if isinstance(value, Exception):
                     value_item.setBackground(QtGui.QBrush(QtGui.QColor(self.colorConfig.COLOR_ERROR)))
                     value_item.setIcon(QtGui.QIcon(':qtutils/fugue/exclamation'))
-                    tooltip = '%s: %s' % (value.__class__.__name__, str(value))
+                    tooltip = f'{value.__class__.__name__}: {value!s}'
                     self.tab_contains_errors = True
                 else:
                     if value_item.background().color().name().lower() != self.colorConfig.COLOR_OK.lower():
@@ -1003,15 +998,14 @@ class RunManager:
             self.output_box.output('Ready.\n\n')
         else:
             self.ui.setEnabled(False)
-            self.output_box.output('Loading default config file %s...' % autoload_config_file)
+            self.output_box.output(f'Loading default config file {autoload_config_file}...')
 
             def load_the_config_file():
                 try:
                     self.load_configuration(autoload_config_file)
                     self.output_box.output('done.\n')
                 except Exception as e:
-                    self.output_box.output('\nCould not load config file: %s: %s\n\n' %
-                                           (e.__class__.__name__, str(e)), red=True)
+                    self.output_box.output(f'\nCould not load config file: {e.__class__.__name__}: {e!s}\n\n', red=True)
                 else:
                     self.output_box.output('Ready.\n\n')
                 finally:
@@ -1196,7 +1190,7 @@ class RunManager:
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:
             message = ('Current configuration (which groups are active/open and other GUI state) '
-                       'has changed: save config file \'%s\'?' % self.last_save_config_file)
+                       f'has changed: save config file \'{self.last_save_config_file}\'?')
             reply = QtWidgets.QMessageBox.question(self.ui, 'Quit runmanager', message,
                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
             if reply == QtWidgets.QMessageBox.Cancel:
@@ -1245,7 +1239,7 @@ class RunManager:
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         labscript_file = os.path.abspath(labscript_file)
         if not os.path.isfile(labscript_file):
-            error_dialog("No such file %s." % labscript_file)
+            error_dialog(f"No such file {labscript_file}.")
             return
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_labscript_folder = os.path.dirname(labscript_file)
@@ -1272,8 +1266,7 @@ class RunManager:
         try:
             subprocess.Popen([editor_path] + editor_args)
         except Exception as e:
-            error_dialog("Unable to launch text editor specified in %s. Error was: %s" %
-                         (self.exp_config.config_path, str(e)))
+            error_dialog(f"Unable to launch text editor specified in {self.exp_config.config_path}. Error was: {e!s}")
 
     def on_select_shot_output_folder_clicked(self, checked):
         shot_output_folder = QtWidgets.QFileDialog.getExistingDirectory(self.ui,
@@ -1351,14 +1344,14 @@ class RunManager:
             try:
                 sequenceglobals, shots, evaled_globals, global_hierarchy, expansions = self.parse_globals(active_groups, expansion_order=expansion_order)
             except Exception as e:
-                raise Exception('Error parsing globals:\n%s\nCompilation aborted.' % str(e))
+                raise Exception(f'Error parsing globals:\n{e!s}\nCompilation aborted.')
             self.logger.info('Making h5 files')
             labscript_file, run_files = self.make_h5_files(
                 labscript_file, output_folder, sequenceglobals, shots, shuffle)
             self.ui.pushButton_abort.setEnabled(True)
             self.compile_queue.put([labscript_file, run_files, send_to_BLACS, BLACS_host, send_to_runviewer])
         except Exception as e:
-            self.output_box.output('%s\n\n' % str(e), red=True)
+            self.output_box.output(f'{e!s}\n\n', red=True)
         self.logger.info('end engage')
 
     def on_abort_clicked(self):
@@ -1612,7 +1605,7 @@ class RunManager:
         # message.
         confirm_multiple = (len(name_items) > 1)
         if confirm_multiple:
-            if not question_dialog("Delete %d groups?" % len(name_items)):
+            if not question_dialog(f"Delete {len(name_items)} groups?"):
                 return
         for item in name_items:
             globals_file = item.parent().text()
@@ -1665,8 +1658,7 @@ class RunManager:
         child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                          for child_item in child_openclose_items]
         if any(child_is_open):
-            if not question_dialog('Close %d file(s)? This will close %d currently open group(s).' %
-                                   (len(name_items), child_is_open.count(True))):
+            if not question_dialog(f'Close {len(name_items)} file(s)? This will close {child_is_open.count(True)} currently open group(s).'):
                 return
         for item in name_items:
             globals_file = item.text()
@@ -1686,7 +1678,7 @@ class RunManager:
         # Convert to standard platform specific path, otherwise Qt likes forward slashes:
         globals_file = os.path.abspath(globals_file)
         if not os.path.isfile(globals_file):
-            error_dialog("No such file %s." % globals_file)
+            error_dialog(f"No such file {globals_file}.")
             return
         # Save the containing folder for use next time we open the dialog box:
         self.last_opened_globals_folder = os.path.dirname(globals_file)
@@ -1739,7 +1731,7 @@ class RunManager:
 
         # Display the output tab so the user can see the output:
         self.ui.tabWidget.setCurrentWidget(self.ui.tab_output)
-        self.output_box.output('Globals diff with:\n%s\n\n' % globals_file)
+        self.output_box.output(f'Globals diff with:\n{globals_file}\n\n')
 
         # Do the globals diff
         globals_diff_table = differ.globals_diff_groups(active_groups, other_groups)
@@ -2233,7 +2225,7 @@ class RunManager:
                     globals_file = file_name_item.text()
                     if group_name in active_groups:
                         msg = (
-                            'There are two active groups named %s. ' % group_name
+                            f'There are two active groups named {group_name}. '
                             + 'Active groups must have unique names.'
                         )
                         if interactive:
@@ -2361,8 +2353,7 @@ class RunManager:
         child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                          for child_item in child_openclose_items]
         if confirm and any(child_is_open):
-            if not question_dialog('Close %s? This will close %d currently open group(s).' %
-                                   (globals_file, child_is_open.count(True))):
+            if not question_dialog(f'Close {globals_file}? This will close {child_is_open.count(True)} currently open group(s).'):
                 return
         to_close = [name_item for name_item, is_open in zip(child_name_items, child_is_open) if is_open]
         for name_item in to_close:
@@ -2490,7 +2481,7 @@ class RunManager:
 
     def delete_group(self, globals_file, group_name, confirm=True):
         if confirm:
-            if not question_dialog("Delete the group '%s'?" % group_name):
+            if not question_dialog(f"Delete the group '{group_name}'?"):
                 return
         # If the group is open, close it:
         group_tab = self.currently_open_groups.get((globals_file, group_name))
@@ -2513,7 +2504,7 @@ class RunManager:
     def on_revert_configuration_triggered(self):
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:
-            message = 'Revert configuration to the last saved state in \'%s\'?' % self.last_save_config_file
+            message = f'Revert configuration to the last saved state in \'{self.last_save_config_file}\'?'
             reply = QtWidgets.QMessageBox.question(self.ui, 'Load configuration', message,
                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel)
             if reply == QtWidgets.QMessageBox.Cancel:
@@ -2616,7 +2607,7 @@ class RunManager:
         save_data = self.get_save_data()
         if self.last_save_data is not None and save_data != self.last_save_data:
             message = ('Current configuration (which groups are active/open and other GUI state) '
-                       'has changed: save config file \'%s\'?' % self.last_save_config_file)
+                       f'has changed: save config file \'{self.last_save_config_file}\'?')
             reply = QtWidgets.QMessageBox.question(self.ui, 'Load configuration', message,
                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
             if reply == QtWidgets.QMessageBox.Cancel:
@@ -2646,7 +2637,7 @@ class RunManager:
 
     def load_configuration(self, filename):
         self.last_save_config_file = filename
-        self.ui.actionSave_configuration.setText('Save configuration %s'%filename)
+        self.ui.actionSave_configuration.setText(f'Save configuration {filename}')
         # Close all files:
         save_data = self.get_save_data()
         for globals_file in save_data['h5_files_open']:
@@ -2660,7 +2651,7 @@ class RunManager:
             if not has_been_a_warning[0]:
                 has_been_a_warning[0] = True
                 self.output_box.output('\n')
-            self.output_box.output('Warning: %s\n' % message, red=True)
+            self.output_box.output(f'Warning: {message}\n', red=True)
 
         for globals_file in runmanager_config.get('h5_files_open', []):
             if os.path.exists(globals_file):
@@ -2671,21 +2662,21 @@ class RunManager:
                     raise_exception_in_thread(sys.exc_info())
                     continue
             else:
-                self.output_box.output('\nWarning: globals file %s no longer exists\n' % globals_file, red=True)
+                self.output_box.output(f'\nWarning: globals file {globals_file} no longer exists\n', red=True)
 
         for globals_file, group_name in runmanager_config.get('active_groups', []):
             try:
                 group_active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
                 group_active_item.setCheckState(QtCore.Qt.Checked)
             except LookupError:
-                warning("previously active group '%s' in %s no longer exists" % (group_name, globals_file))
+                warning(f"previously active group '{group_name}' in {globals_file} no longer exists")
 
         for globals_file, group_name in runmanager_config.get('groups_open', []):
             # First check if it exists:
             try:
                 self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_NAME)
             except LookupError:
-                warning("previously open group '%s' in %s no longer exists" % (group_name, globals_file))
+                warning(f"previously open group '{group_name}' in {globals_file} no longer exists")
             else:
                 self.open_group(globals_file, group_name)
 
@@ -2695,7 +2686,7 @@ class RunManager:
                 self.ui.lineEdit_labscript_file.setText(current_labscript_file)
                 self.last_opened_labscript_folder = os.path.dirname(current_labscript_file)
             elif current_labscript_file:
-                warning('previously selected labscript file %s no longer exists' % current_labscript_file)
+                warning(f'previously selected labscript file {current_labscript_file} no longer exists')
 
         shot_output_folder = runmanager_config.get('shot_output_folder')
         if shot_output_folder is not None:
@@ -2908,13 +2899,13 @@ class RunManager:
                 expansion_types[global_name][key] = expansions[global_name]
                 
                 # debug logging
-                log_if_global(global_name, [], 'Using existing expansion %s for %s'%(expansions[global_name], global_name))
+                log_if_global(global_name, [], f'Using existing expansion {expansions[global_name]} for {global_name}')
             else:
                 expansion_types[global_name][key] = expansion_to_set
                 expansions[global_name] = expansion_to_set
                 
                 # debug logging
-                log_if_global(global_name, [], 'Using existing expansion %s for %s'%(expansion_to_set, global_name))
+                log_if_global(global_name, [], f'Using existing expansion {expansion_to_set} for {global_name}')
             
         
         for global_name in sorted(expansion_types):
@@ -2998,7 +2989,7 @@ class RunManager:
     def send_to_BLACS(self, run_file, BLACS_hostname):
         port = int(self.exp_config.get('ports', 'BLACS'))
         agnostic_path = shared_drive.path_to_agnostic(run_file)
-        self.output_box.output('Submitting run file %s.\n' % os.path.basename(run_file))
+        self.output_box.output(f'Submitting run file {os.path.basename(run_file)}.\n')
         try:
             response = zmq_get(port, BLACS_hostname, data=agnostic_path)
             if 'added successfully' in response:
@@ -3006,7 +2997,7 @@ class RunManager:
             else:
                 raise Exception(response)
         except Exception as e:
-            self.output_box.output('Couldn\'t submit job to control server: %s\n' % str(e), red=True)
+            self.output_box.output(f'Couldn\'t submit job to control server: {e!s}\n', red=True)
             self.compilation_aborted.set()
 
     def send_to_runviewer(self, run_file):
@@ -3035,16 +3026,16 @@ class RunManager:
             try:
                 zmq_get(runviewer_port, 'localhost', data='hello', timeout=15)
             except Exception as e:
-                self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n' % str(e), red=True)
+                self.output_box.output(f'Couldn\'t submit shot to runviewer: {e!s}\n\n', red=True)
 
         try:
             response = zmq_get(runviewer_port, 'localhost', data=agnostic_path, timeout=0.5)
             if 'ok' not in response:
                 raise Exception(response)
             else:
-                self.output_box.output('Shot %s sent to runviewer.\n' % os.path.basename(run_file))
+                self.output_box.output(f'Shot {os.path.basename(run_file)} sent to runviewer.\n')
         except Exception as e:
-            self.output_box.output('Couldn\'t submit shot to runviewer: %s\n\n' % str(e), red=True)
+            self.output_box.output(f'Couldn\'t submit shot to runviewer: {e!s}\n\n', red=True)
 
 
 class RemoteServer(ZMQServer):
@@ -3130,7 +3121,7 @@ class RemoteServer(ZMQServer):
                         break
                 else:
                     # Global was not found.
-                    msg = "Global %s not found in any active group" % global_name
+                    msg = f"Global {global_name} not found in any active group"
                     raise ValueError(msg)
         finally:
             # Trigger preparsing of globals to occur so that changes in globals not in

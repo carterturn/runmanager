@@ -164,7 +164,7 @@ def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_
             i += 1
 
         # copy group
-        dest_f.copy(source_f['globals'][source_groupname], '/globals/%s' % dest_groupname)
+        dest_f.copy(source_f['globals'][source_groupname], f'/globals/{dest_groupname}')
 
         # close opend file
         if dest_f != source_f:
@@ -185,7 +185,7 @@ def rename_group(filename, oldgroupname, newgroupname):
     with h5py.File(filename, 'a') as f:
         if newgroupname in f['globals']:
             raise Exception('Can\'t rename group: target name already exists.')
-        f.copy(f['globals'][oldgroupname], '/globals/%s' % newgroupname)
+        f.copy(f['globals'][oldgroupname], f'/globals/{newgroupname}')
         del f['globals'][oldgroupname]
 
 
@@ -204,7 +204,7 @@ def get_globalslist(filename, groupname):
 
 def new_global(filename, groupname, globalname):
     if not is_valid_python_identifier(globalname):
-        raise ValueError('%s is not a valid Python variable name'%globalname)
+        raise ValueError('{globalname} is not a valid Python variable name')
     with h5py.File(filename, 'a') as f:
         group = f['globals'][groupname]
         if globalname in group.attrs:
@@ -219,7 +219,7 @@ def rename_global(filename, groupname, oldglobalname, newglobalname):
         # No rename!
         return
     if not is_valid_python_identifier(newglobalname):
-        raise ValueError('%s is not a valid Python variable name'%newglobalname)
+        raise ValueError(f'{newglobalname} is not a valid Python variable name')
     value = get_value(filename, groupname, oldglobalname)
     units = get_units(filename, groupname, oldglobalname)
     expansion = get_expansion(filename, groupname, oldglobalname)
@@ -298,7 +298,7 @@ def get_all_groups(h5_files):
     for path in h5_files:
         for group_name in get_grouplist(path):
             if group_name in groups:
-                raise ValueError('Error: group %s is defined in both %s and %s. ' % (group_name, groups[group_name], path) +
+                raise ValueError(f'Error: group {group_name} is defined in both {groups[group_name]} and {path}. '
                                  'Only uniquely named groups can be used together '
                                  'to make a run file.')
             groups[group_name] = path
