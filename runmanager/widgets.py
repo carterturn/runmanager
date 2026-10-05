@@ -311,7 +311,7 @@ class ItemView:
 
 
     def __init__(self, *args):
-        super(ItemView, self).__init__(*args)
+        super().__init__(*args)
         self._pressed_index = None
         self._double_click = False
         self.setAutoScroll(False)
@@ -337,14 +337,14 @@ class ItemView:
             return self.indexAt(event.position().toPoint())
 
     def mousePressEvent(self, event):
-        result = super(ItemView, self).mousePressEvent(event)
+        result = super().mousePressEvent(event)
         index = self.mouseEventIndex(event)
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
             self._pressed_index = self.mouseEventIndex(event)
         return result
 
     def leaveEvent(self, event):
-        result = super(ItemView, self).leaveEvent(event)
+        result = super().leaveEvent(event)
         self._pressed_index = None
         self._double_click = False
         return result
@@ -352,7 +352,7 @@ class ItemView:
     def mouseDoubleClickEvent(self, event):
         # Ensure our left click event occurs regardless of whether it is the
         # second click in a double click or not
-        result = super(ItemView, self).mouseDoubleClickEvent(event)
+        result = super().mouseDoubleClickEvent(event)
         index = self.mouseEventIndex(event)
         if event.button() == QtCore.Qt.LeftButton and index.isValid():
             self._pressed_index = self.mouseEventIndex(event)
@@ -360,7 +360,7 @@ class ItemView:
         return result
 
     def mouseReleaseEvent(self, event):
-        result = super(ItemView, self).mouseReleaseEvent(event)
+        result = super().mouseReleaseEvent(event)
         index = self.mouseEventIndex(event)
         if event.button() == QtCore.Qt.LeftButton and index.isValid() and index == self._pressed_index:
             self.leftClicked.emit(index)
@@ -379,7 +379,7 @@ class ItemView:
             else:
                 # Space/enter on non-editable items simulates a left click:
                 self.leftClicked.emit(self.currentIndex())
-        return super(ItemView, self).keyPressEvent(event)
+        return super().keyPressEvent(event)
 
     def moveCursor(self, cursor_action, keyboard_modifiers):
         current_index = self.currentIndex()
@@ -397,13 +397,13 @@ class ItemView:
         elif cursor_action == QtWidgets.QAbstractItemView.MoveNext:
             return current_index.sibling(current_row, current_column + 1)
         else:
-            return super(ItemView, self).moveCursor(cursor_action, keyboard_modifiers)
+            return super().moveCursor(cursor_action, keyboard_modifiers)
 
 
 class TreeView(ItemView, QtWidgets.QTreeView):
     """Treeview version of our customised ItemView"""
     def __init__(self, parent=None):
-        super(TreeView, self).__init__(parent)
+        super().__init__(parent)
         # Set columns to their minimum size, disabling resizing. Caller may still
         # configure a specific section to stretch:
         self.header().setSectionResizeMode(
@@ -415,7 +415,7 @@ class TreeView(ItemView, QtWidgets.QTreeView):
 class TableView(ItemView, QtWidgets.QTableView):
     """TableView version of our customised ItemView"""
     def __init__(self, parent=None):
-        super(TableView, self).__init__(parent)
+        super().__init__(parent)
         # Set rows and columns to the minimum size, disabling interactive resizing.
         # Caller may still configure a specific column to stretch:
         self.verticalHeader().setSectionResizeMode(
