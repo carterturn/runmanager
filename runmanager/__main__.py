@@ -144,7 +144,7 @@ def scroll_view_to_row_if_current(view, item):
         horizontal_scrollbar.setValue(existing_horizontal_position)
 
 
-class GroupTab(object):
+class GroupTab:
     GLOBALS_COL_DELETE = 0
     GLOBALS_COL_NAME = 1
     GLOBALS_COL_VALUE = 2
@@ -868,7 +868,7 @@ class PoppedOutOutputBoxWindow(QtWidgets.QDialog):
         app.on_output_popout_button_clicked()
 
 
-class RunManager(object):
+class RunManager:
 
     # Constants for the model in the axes tab:
     AXES_COL_NAME = 0

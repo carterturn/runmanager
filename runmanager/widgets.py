@@ -18,7 +18,8 @@ import logging
 from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
-class RunmanagerColors(object):
+
+class RunmanagerColors:
     """Singleton class that globally defines various colors for the globals view
     
     Colors are saved to class attributes as hex strings.
@@ -300,7 +301,7 @@ class FingerTabWidget(QtWidgets.QTabWidget):
                 break
 
 
-class ItemView(object):
+class ItemView:
     """Mixin for QTableView and QTreeView that emits a custom signal leftClicked(index)
     after a left click on a valid index, and doubleLeftClicked(index) (in addition) on
     double click. Also has modified tab and arrow key behaviour and custom selection

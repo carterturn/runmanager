@@ -56,6 +56,7 @@ autodoc_mock_imports = ['labscript_utils']
 
 # mock missing site package methods
 import site
+
 mock_site_methods = {
     # Format:
     #   method name: return value
@@ -73,13 +74,14 @@ del __fn
 
 # mock zprocess calls in batch_compiler
 from labscript_utils.ls_zprocess import ProcessTree
+
 mock_processtree_methods = {
     # Format:
     # method name: return value
     'connect_to_parent': ProcessTree,
 }
 
-class __zlock_client(object):
+class __zlock_client:
     def set_process_name(self,*args,**kwargs):
         pass
 

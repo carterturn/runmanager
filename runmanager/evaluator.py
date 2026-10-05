@@ -19,6 +19,7 @@ import types
 
 from runmanager.exceptions import ExpansionError
 
+
 class TraceDictionary(dict):
 
     def __init__(self, *args, **kwargs):

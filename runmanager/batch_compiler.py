@@ -12,6 +12,7 @@
 #####################################################################
 
 from labscript_utils.ls_zprocess import ProcessTree
+
 process_tree = ProcessTree.connect_to_parent()
 to_parent = process_tree.to_parent
 from_parent = process_tree.from_parent
@@ -28,7 +29,8 @@ from types import ModuleType
 import labscript
 from labscript_utils.modulewatcher import ModuleWatcher
 
-class BatchProcessor(object):
+
+class BatchProcessor:
     def __init__(self, to_parent, from_parent, kill_lock):
         self.to_parent = to_parent
         self.from_parent = from_parent

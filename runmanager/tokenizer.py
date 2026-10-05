@@ -16,6 +16,7 @@
 import io
 import tokenize
 
+
 def find_comments(src):
     """Return a list of start and end indices for where comments are in given Python
     source. Comments on separate lines with only whitespace in between them are

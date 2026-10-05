@@ -7,6 +7,7 @@ $ python runmanager.differ.global_diffs(shot1,shot2)
 
 """
 import sys
+
 from runmanager.differ import globals_diff_shots
 
 if __name__ == '__main__':
