@@ -1410,11 +1410,6 @@ class RunManager:
 
     def on_treeView_axes_context_menu_requested(self, point):
         raise NotImplementedError
-        # menu = QtWidgets.QMenu(self.ui)
-        # menu.addAction(self.action_axes_check_selected)
-        # menu.addAction(self.action_axes_uncheck_selected)
-        # menu.exec(QtGui.QCursor.pos())
-        pass
 
     def on_axes_check_selected_triggered(self, *args):
         raise NotImplementedError
