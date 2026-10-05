@@ -2856,7 +2856,7 @@ class RunManager:
                     # either result in nothing being done to the expansion
                     # type or the expansion type being found to be 'outer',
                     # which will then make it go through the machinery below
-                    if global_name in expansions and expansions[global_name]:
+                    if expansions.get(global_name):
                         previous_value = new_value
                     else:
                         previous_value = 0
@@ -3098,7 +3098,7 @@ class RemoteServer(ZMQServer):
                                         multiple active groups: %s and %s"""
                                     msg = msg % (global_name, group_name, other_name)
                                     raise RuntimeError(dedent(msg))
-                        previous_value, _, _ = sequence_globals[group_name][global_name]
+                        previous_value, _, _ = group_globals[global_name]
 
                         # Append expression-final comments in the previous expression to
                         # the new one:
