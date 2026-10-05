@@ -11,10 +11,6 @@
 #                                                                   #
 #####################################################################
 
-import os
-import sys
-import warnings
-
 import labscript_utils.h5_lock
 
 # Used in BLACS

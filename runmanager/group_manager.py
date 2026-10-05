@@ -15,6 +15,7 @@
 
 import io
 import tokenize
+import warnings
 
 import h5py
 import labscript_utils.shot_utils
