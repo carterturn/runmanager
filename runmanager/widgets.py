@@ -15,7 +15,7 @@
 
 import logging
 
-from qtutils.qt import QtCore, QtGui, QtWidgets, QT_ENV
+from qtutils.qt import QT_ENV, QtCore, QtGui, QtWidgets
 from qtutils.qt.QtCore import pyqtSignal as Signal
 
 

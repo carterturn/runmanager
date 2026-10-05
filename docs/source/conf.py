@@ -11,10 +11,11 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import copy
+import importlib.metadata
 import os
 from pathlib import Path
-from jinja2 import FileSystemLoader, Environment
-import importlib.metadata
+
+from jinja2 import Environment, FileSystemLoader
 
 # -- Project information (unique to each project) -------------------------------------
 

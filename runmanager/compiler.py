@@ -16,27 +16,24 @@ Actual compilation takes place in batch_compiler.py.
 These functions prepare the sequence and globals.
 """
 
-import os
-import random
-import subprocess
-import threading
-import traceback
 import datetime
 import errno
 import json
+import os
+import random
+import threading
+import traceback
 
 import h5py
 import numpy as np
-
-from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
 from labscript_utils.labconfig import LabConfig
+from labscript_utils.ls_zprocess import ProcessTree, zmq_push_multipart
+
 process_tree = ProcessTree.instance()
 
-from runmanager.expander import expand_globals
 
-import runmanager.group_manager as group_manager
-import runmanager.evaluator as evaluator
-import runmanager.expander as expander
+from runmanager import evaluator, expander, group_manager
+
 
 def next_sequence_index(shot_basedir, dt, increment=True):
     """Return the next sequence index for sequences in the given base directory (i.e.

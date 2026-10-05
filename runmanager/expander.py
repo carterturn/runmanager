@@ -16,7 +16,6 @@
 import itertools
 import random
 
-import numpy as np
 
 def expand_globals(sequence_globals, evaled_globals, expansion_config = None, return_dimensions = False):
     """Expands iterable globals according to their expansion

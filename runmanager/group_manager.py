@@ -14,13 +14,14 @@
 """
 
 import io
-import h5py
-import numpy as np
 import tokenize
 
+import h5py
 import labscript_utils.shot_utils
+import numpy as np
 
 from runmanager.evaluator import evaluate_globals
+
 
 def _ensure_str(s):
     """convert bytestrings and numpy strings to python strings"""

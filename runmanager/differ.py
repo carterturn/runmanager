@@ -16,8 +16,9 @@
 import numpy as np
 
 from runmanager.evaluator import evaluate_globals
-from runmanager.tokenizer import remove_comments_and_tokenify
 from runmanager.group_manager import get_all_groups, get_globals
+from runmanager.tokenizer import remove_comments_and_tokenify
+
 
 def flatten_globals(sequence_globals, evaluated=False):
     """Flattens the data structure of the globals. If evaluated=False,

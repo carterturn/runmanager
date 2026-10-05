@@ -17,7 +17,7 @@ import warnings
 
 import labscript_utils.h5_lock
 
-from .__version__ import __version__
-
 # Used in BLACS
 from runmanager.compiler import compile_labscript_with_globals_files_async
+
+from .__version__ import __version__
