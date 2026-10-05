@@ -147,7 +147,7 @@ def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_
     with h5py.File(source_globals_file, 'a') as source_f:
         # check if group exists
         if source_groupname not in source_f['globals']:
-            raise Exception('Can\'t copy there is no group "{}"!'.format(source_groupname))
+            raise Exception(f'Can\'t copy there is no group "{source_groupname}"!')
 
         # Are we coping from one file to another?
         if dest_globals_file is not None and source_globals_file != dest_globals_file:
@@ -159,7 +159,7 @@ def copy_group(source_globals_file, source_groupname, dest_globals_file, delete_
         i = 0 if not delete_source_group else 1
         dest_groupname = source_groupname
         while dest_groupname in dest_f['globals']:
-            dest_groupname = "{}({})".format(dest_groupname, i) if i > 0 else "{}_copy".format(dest_groupname)
+            dest_groupname = f"{dest_groupname}({i})" if i > 0 else f"{dest_groupname}_copy"
             i += 1
 
         # copy group
@@ -284,9 +284,9 @@ def delete_global(filename, groupname, globalname):
 
 def guess_expansion_type(value):
     if isinstance(value, np.ndarray) or isinstance(value, list):
-        return u'outer'
+        return 'outer'
     else:
-        return u''
+        return ''
 
 
 def get_all_groups(h5_files):

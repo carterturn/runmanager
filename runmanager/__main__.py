@@ -2062,7 +2062,7 @@ class RunManager:
             else:
                 length_item = self.axes_model.item(i, self.AXES_COL_LENGTH)
                 if name in dimensions:
-                    length_item.setText("{}".format(dimensions[name]))
+                    length_item.setText(f"{dimensions[name]}")
                 else:
                     length_item.setText('Unknown')
                 
@@ -2093,7 +2093,7 @@ class RunManager:
         
         length = 'Unknown'
         if expansion_name in dimensions:
-            length = "{}".format(dimensions[expansion_name])
+            length = f"{dimensions[expansion_name]}"
         length_item = QtGui.QStandardItem(length)
         items.append(length_item)
         
@@ -2113,8 +2113,8 @@ class RunManager:
         if n_shots == 1:
             n_shots_string = '(1 shot)'
         else:
-            n_shots_string = '({} shots)'.format(n_shots)
-        self.ui.pushButton_engage.setText('Engage {}'.format(n_shots_string))
+            n_shots_string = f'({n_shots} shots)'
+        self.ui.pushButton_engage.setText(f'Engage {n_shots_string}')
 
     def preparse_globals(self):
         active_groups = self.get_active_groups()
@@ -2548,7 +2548,7 @@ class RunManager:
         # forward slashes:
         save_file = os.path.abspath(save_file)
         self.save_configuration(save_file)
-        self.ui.actionSave_configuration.setText('Save configuration {}'.format(save_file))
+        self.ui.actionSave_configuration.setText(f'Save configuration {save_file}')
 
     def get_save_data(self):
         # Get the currently open files and active groups:
