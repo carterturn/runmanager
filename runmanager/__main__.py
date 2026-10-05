@@ -477,9 +477,8 @@ class GroupTab:
         # pass confirm=True to self.delete_global so it can show the regular
         # message.
         confirm_multiple = (len(name_items) > 1)
-        if confirm_multiple:
-            if not question_dialog(f"Delete {len(name_items)} globals?"):
-                return
+        if confirm_multiple and not question_dialog(f"Delete {len(name_items)} globals?"):
+            return
         for item in name_items:
             global_name = item.text()
             self.delete_global(global_name, confirm=not confirm_multiple)
@@ -733,9 +732,8 @@ class GroupTab:
 
     def delete_global(self, global_name, confirm=True):
         self.logger.info(f'{self.globals_file}:{self.group_name} - delete global: {global_name}')
-        if confirm:
-            if not question_dialog(f"Delete the global '{global_name}'?"):
-                return
+        if confirm and not question_dialog(f"Delete the global '{global_name}'?"):
+            return
         group_manager.delete_global(self.globals_file, self.group_name, global_name)
         # Find the entry for this global in self.globals_model and remove it:
         name_item = self.get_global_item_by_name(global_name, self.GLOBALS_COL_NAME)
@@ -1604,9 +1602,8 @@ class RunManager:
         # pass confirm=True to self.delete_group so it can show the regular
         # message.
         confirm_multiple = (len(name_items) > 1)
-        if confirm_multiple:
-            if not question_dialog(f"Delete {len(name_items)} groups?"):
-                return
+        if confirm_multiple and not question_dialog(f"Delete {len(name_items)} groups?"):
+            return
         for item in name_items:
             globals_file = item.parent().text()
             group_name = item.text()
@@ -1657,9 +1654,9 @@ class RunManager:
                                  for i in range(item.rowCount())]
         child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                          for child_item in child_openclose_items]
-        if any(child_is_open):
-            if not question_dialog(f'Close {len(name_items)} file(s)? This will close {child_is_open.count(True)} currently open group(s).'):
-                return
+        if (any(child_is_open)
+            and not question_dialog(f'Close {len(name_items)} file(s)? This will close {child_is_open.count(True)} currently open group(s).')):
+            return
         for item in name_items:
             globals_file = item.text()
             self.close_globals_file(globals_file, confirm=False)
@@ -2352,9 +2349,9 @@ class RunManager:
         child_openclose_items = [item.child(i, self.GROUPS_COL_OPENCLOSE) for i in range(item.rowCount())]
         child_is_open = [child_item.data(self.GROUPS_ROLE_GROUP_IS_OPEN)
                          for child_item in child_openclose_items]
-        if confirm and any(child_is_open):
-            if not question_dialog(f'Close {globals_file}? This will close {child_is_open.count(True)} currently open group(s).'):
-                return
+        if (confirm and any(child_is_open)
+            and not question_dialog(f'Close {globals_file}? This will close {child_is_open.count(True)} currently open group(s).')):
+            return
         to_close = [name_item for name_item, is_open in zip(child_name_items, child_is_open) if is_open]
         for name_item in to_close:
             group_name = name_item.text()
@@ -2480,9 +2477,8 @@ class RunManager:
         openclose_item.setData(False, self.GROUPS_ROLE_GROUP_IS_OPEN)
 
     def delete_group(self, globals_file, group_name, confirm=True):
-        if confirm:
-            if not question_dialog(f"Delete the group '{group_name}'?"):
-                return
+        if confirm and not question_dialog(f"Delete the group '{group_name}'?"):
+            return
         # If the group is open, close it:
         group_tab = self.currently_open_groups.get((globals_file, group_name))
         if group_tab is not None:
@@ -3083,12 +3079,10 @@ class RemoteServer(ZMQServer):
                     if global_name in group_globals:
                         # Confirm it's not also in another group:
                         for other_name, other_globals in sequence_globals.items():
-                            if other_globals is not group_globals:
-                                if global_name in other_globals:
-                                    msg = """Cannot set global %s, it is defined in
-                                        multiple active groups: %s and %s"""
-                                    msg = msg % (global_name, group_name, other_name)
-                                    raise RuntimeError(dedent(msg))
+                            if other_globals is not group_globals and global_name in other_globals:
+                                msg = (f'Cannot set global {global_name}, it is defined in'
+                                       f' multiple active groups: {group_name} and {other_name}')
+                                raise RuntimeError(msg)
                         previous_value, _, _ = group_globals[global_name]
 
                         # Append expression-final comments in the previous expression to
